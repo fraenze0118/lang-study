@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "lang-study",
+    "slug": "lang-study",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.langstudy.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ea580c"
+      }
+    },
+    "plugins": [
+      "expo-sqlite"
+    ]
+  }
+}
