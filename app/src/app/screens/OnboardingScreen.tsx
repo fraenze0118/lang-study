@@ -12,6 +12,7 @@ import { clearBatchCache } from '../../features/study/service';
 import { colors, radius, spacing, type } from '../../lib/theme';
 import { tapFeedback } from '../../lib/haptics';
 import AppButton from '../../components/AppButton';
+import AppIcon from '../../components/AppIcon';
 
 const GOALS: { value: Goal; label: string }[] = [
   { value: 'exam', label: '等级考试备考' },
@@ -53,7 +54,9 @@ export default function OnboardingScreen({ navigation }: Props) {
     // headerShown:false，自己避开状态栏
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.logo}>🌏</Text>
+        <View style={styles.logoWrap}>
+          <AppIcon name="globe" size={40} color={colors.primary} />
+        </View>
         <Text style={styles.title}>欢迎来到 lang-study</Text>
         <Text style={styles.subtitle}>
           先选你想学的语言。之后随时能在「设置」里切换或再加一门。
@@ -139,8 +142,8 @@ export default function OnboardingScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { padding: spacing.xl, paddingBottom: spacing.xxl, backgroundColor: colors.bg },
-  logo: { fontSize: 44, textAlign: 'center', marginTop: spacing.lg },
-  title: { ...type.h1, fontSize: 26, textAlign: 'center', marginTop: spacing.md },
+  logoWrap: { alignItems: 'center', marginTop: spacing.lg },
+  title: { ...type.title2, textAlign: 'center', marginTop: spacing.md },
   subtitle: {
     ...type.body,
     color: colors.textSecondary,
@@ -149,7 +152,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     lineHeight: 22,
   },
-  label: { ...type.h2, fontSize: 15, marginTop: spacing.xl, marginBottom: spacing.sm },
+  label: { ...type.bodyStrong, marginTop: spacing.xl, marginBottom: spacing.sm },
   hint: { ...type.caption, lineHeight: 19, marginBottom: spacing.sm },
   hintCenter: { ...type.caption, textAlign: 'center', marginTop: spacing.md },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
@@ -164,7 +167,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.bg,
   },
-  langFlag: { fontSize: 20 },
+  langFlag: { ...type.title3 },
   chip: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
@@ -191,7 +194,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  cardLabel: { ...type.body, fontWeight: '700', fontSize: 16, flex: 1 },
+  cardLabel: { ...type.bodyStrong, flex: 1 },
   cardLabelActive: { color: colors.primaryText },
   cardDesc: { ...type.caption, marginTop: spacing.xs, lineHeight: 18 },
   badge: {
@@ -201,7 +204,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.trackBg,
   },
   badgeActive: { backgroundColor: colors.primary },
-  badgeText: { ...type.label, fontSize: 12 },
+  badgeText: { ...type.captionStrong },
   badgeTextActive: { color: colors.textOnPrimary },
   input: {
     borderWidth: 1,

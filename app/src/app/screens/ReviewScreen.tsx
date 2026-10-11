@@ -13,10 +13,11 @@ import { getOverview, logAnswer, ProgressOverview } from '../../features/progres
 import { XP_REVIEW, xpForSession } from '../../features/progress/xp';
 import { getActiveContext } from '../../features/profile/languageService';
 import { ReviewGrade } from '../../lib/enums';
-import { colors, radius, shadow, spacing, type } from '../../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../../lib/theme';
 import { comboFeedback, tapFeedback } from '../../lib/haptics';
 import { useFlip } from '../../lib/anim';
 import AppButton from '../../components/AppButton';
+import AppIcon from '../../components/AppIcon';
 import SessionSummary from '../../components/SessionSummary';
 import SpeakerButton from '../../components/SpeakerButton';
 import StepHeader from '../../components/StepHeader';
@@ -108,7 +109,7 @@ export default function ReviewScreen({ navigation }: Props) {
         <View style={styles.flex}>
           <StepHeader ratio={1} onClose={() => navigation.goBack()} />
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>🌱</Text>
+            <AppIcon name="empty" size={40} color={colors.textDisabled} />
             <Text style={styles.emptyTitle}>暂无到期内容</Text>
             <Text style={styles.emptySub}>先去学一批新内容，之后它们会自动进入复习队列。</Text>
           </View>
@@ -224,30 +225,29 @@ function ReviewCard({
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.appBg },
-  counter: { ...type.label },
+  counter: { ...type.captionStrong },
   cardWrap: { flex: 1, padding: spacing.lg },
   card: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
     padding: spacing.lg,
-    ...shadow.card,
+    ...elevation.elevated,
   },
-  surface: { ...type.jaWord, fontSize: 44 },
+  // 有意偏离字阶：复习卡独占一屏，词条要比学习页更醒目
+  surface: { ...type.display, fontSize: 44, lineHeight: 52 },
   answerBox: { alignItems: 'center', marginTop: spacing.lg },
-  reading: { ...type.ja, color: colors.textSecondary },
-  meaning: { ...type.zh, marginTop: spacing.sm, fontSize: 18 },
+  reading: { ...type.subhead },
+  meaning: { ...type.headline, marginTop: spacing.sm },
   hint: { ...type.caption, marginTop: spacing.lg },
 
-  footer: { backgroundColor: colors.bg },
+  footer: { backgroundColor: colors.appBg },
   footerInner: {
     padding: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.cardBorder,
+    borderTopColor: colors.border,
   },
   gradeRow: { flexDirection: 'row', gap: spacing.sm, padding: spacing.md },
   gradeBtn: {
@@ -256,12 +256,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
   },
-  gradeColumn: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 13 },
-  gradeLabel: { color: colors.textOnPrimary, fontSize: 12, marginTop: 2, opacity: 0.9 },
+  gradeColumn: { ...type.subheadStrong, color: colors.textOnPrimary },
+  gradeLabel: { ...type.caption, color: colors.textOnPrimary, marginTop: 2, opacity: 0.9 },
 
-  emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { ...type.h1, marginTop: spacing.md },
+  emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl, gap: spacing.sm },
+  emptyTitle: { ...type.title3, marginTop: spacing.sm },
   emptySub: {
     ...type.body,
     color: colors.textSecondary,

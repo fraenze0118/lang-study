@@ -12,6 +12,7 @@ import { getLanguageProfile } from '../../lib/languages';
 import { colorOfMastery } from '../../components/GroupedList';
 import AlphabetGrid from '../../components/AlphabetGrid';
 import PageHeader from '../../components/PageHeader';
+import AppIcon from '../../components/AppIcon';
 import { colors, radius, spacing, type } from '../../lib/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Knowledge'>;
@@ -58,18 +59,35 @@ export default function KnowledgeScreen({ navigation }: Props) {
         <Stat label="待复习" value={stats.dueCount} />
       </View>
 
-      <View style={styles.tabs}>
-        {TABS.map((t) => (
-          <Pressable
-            key={t.key}
-            style={[styles.tab, tab === t.key && styles.tabActive]}
-            onPress={() => setTab(t.key)}
-          >
-            <Text style={tab === t.key ? styles.tabTextActive : styles.tabText}>{t.label}</Text>
-          </Pressable>
-        ))}
-        <Pressable style={styles.reviewBtn} onPress={() => navigation.navigate('Review')}>
-          <Text style={styles.reviewBtnText}>开始复习</Text>
+      {/* tab 区：三个 tab 占满可用宽度（横向可滚动兜底），
+          「开始复习」收成图标按钮固定在右侧。
+          原来是「三个 tab + 文字按钮」硬挤一行且不可滚动/换行，
+          文字按钮被挤出屏幕右边缘。 */}
+      <View style={styles.tabRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabs}
+          style={styles.tabsScroll}
+        >
+          {TABS.map((t) => (
+            <Pressable
+              key={t.key}
+              style={[styles.tab, tab === t.key && styles.tabActive]}
+              onPress={() => setTab(t.key)}
+            >
+              <Text style={tab === t.key ? styles.tabTextActive : styles.tabText}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <Pressable
+          style={styles.reviewBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`开始复习，${stats.dueCount} 条待复习`}
+          onPress={() => navigation.navigate('Review')}
+        >
+          <AppIcon name="review" size={18} color={colors.textOnPrimary} />
+          {stats.dueCount > 0 ? <Text style={styles.reviewBadge}>{stats.dueCount}</Text> : null}
         </Pressable>
       </View>
 
@@ -144,28 +162,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.lg,
   },
-  statValue: { ...type.stat, fontSize: 22 },
+  statValue: { ...type.title3 },
   statLabel: { ...type.caption, marginTop: 2 },
-  tabs: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg },
+  // tab 与按钮同一行的容器：按钮 flexShrink: 0，tab 区可压缩
+  tabRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.lg },
+  tabsScroll: { flex: 1 },
+  // 注意：这里不要 flex:1，横向 ScrollView 的内容容器必须按内容宽度排布
+  tabs: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.xs },
   tab: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
   },
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tabText: { ...type.body, color: colors.text },
-  tabTextActive: { ...type.body, color: colors.textOnPrimary, fontWeight: '700' },
+  tabText: { ...type.subhead, color: colors.text },
+  tabTextActive: { ...type.subhead, color: colors.textOnPrimary, fontWeight: '700' },
   reviewBtn: {
-    marginLeft: 'auto',
+    // 关键：不允许被挤扁或推出屏幕
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
     backgroundColor: colors.success,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
   },
-  reviewBtnText: { ...type.body, color: colors.textOnPrimary, fontWeight: '700' },
+  reviewBadge: { ...type.captionStrong, color: colors.textOnPrimary },
   search: {
     borderWidth: 1,
     borderColor: colors.border,

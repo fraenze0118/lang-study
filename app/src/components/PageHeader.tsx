@@ -35,6 +35,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   // 比原来的 ActionBar 标题更大更轻，靠字号而非分隔线建立层级
-  title: { ...type.h1, fontSize: 24 },
+  title: { ...type.title2 },
   subtitle: { ...type.caption },
 });

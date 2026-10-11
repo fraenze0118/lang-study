@@ -33,9 +33,10 @@ import { applyDifficultyFeedback, getProfile } from '../../features/profile/serv
 import { DEFAULT_USER_ID } from '../../lib/constants';
 import { Exercise } from '../../lib/types';
 import { Feedback as FeedbackValue } from '../../lib/enums';
-import { colors, radius, shadow, spacing, type } from '../../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../../lib/theme';
 import { correctFeedback, tapFeedback, wrongFeedback } from '../../lib/haptics';
 import AppButton from '../../components/AppButton';
+import AppIcon from '../../components/AppIcon';
 import ComboBadge from '../../components/ComboBadge';
 import FeedbackBanner, { FeedbackState } from '../../components/FeedbackBanner';
 import SessionSummary from '../../components/SessionSummary';
@@ -176,7 +177,7 @@ export default function StudyScreen({ route, navigation }: Props) {
         correct: isCorrect,
         title: isCorrect
           ? comboAfter >= 3
-            ? `答对了！连击 ${comboAfter} 🔥`
+            ? `答对了！连击 ${comboAfter}`
             : '答对了！'
           : '答错了',
         detail: isCorrect
@@ -261,7 +262,7 @@ export default function StudyScreen({ route, navigation }: Props) {
   if (error) {
     return (
       <View style={styles.center}>
-        <Text style={styles.errorIcon}>😕</Text>
+        <AppIcon name="error" size={40} color={colors.textDisabled} />
         <Text style={styles.error}>{error}</Text>
         <AppButton label="返回" onPress={() => navigation.goBack()} style={styles.errorBtn} />
       </View>
@@ -424,7 +425,7 @@ export default function StudyScreen({ route, navigation }: Props) {
 function IntroStep({ session, label }: { session: StudySessionData; label: string }) {
   return (
     <View style={styles.introBox}>
-      <Text style={styles.introEmoji}>📚</Text>
+      <AppIcon name="lesson" size={40} color={colors.primary} />
       <Text style={styles.introTitle}>本批 {session.items.length} 个条目</Text>
       <Text style={styles.introSub}>
         {session.exercises.length} 道练习
@@ -542,7 +543,12 @@ function GrammarStep({
       <Text style={styles.stepKind}>语法</Text>
       <Text style={styles.wordSmall}>{structure || '语法点'}</Text>
       <Text style={styles.explanation}>{explanation}</Text>
-      {tips ? <Text style={styles.tips}>💡 {tips}</Text> : null}
+      {tips ? (
+        <View style={styles.tipsRow}>
+          <AppIcon name="tip" size={15} color={colors.warningText} />
+          <Text style={styles.tips}>{tips}</Text>
+        </View>
+      ) : null}
       {examples.map((ex, i) => (
         <View key={i} style={styles.example}>
           <View style={styles.jaRow}>
@@ -624,8 +630,12 @@ function ExerciseStep({
                 <Text style={[styles.optionText, (isAnswer || isWrongPick) && styles.optionTextStrong]}>
                   {o}
                 </Text>
-                {isAnswer ? <Text style={styles.markCorrect}>✓</Text> : null}
-                {isWrongPick ? <Text style={styles.markWrong}>✕</Text> : null}
+                {isAnswer ? (
+                  <AppIcon name="correct" size={20} color={colors.successText} />
+                ) : null}
+                {isWrongPick ? (
+                  <AppIcon name="wrong" size={20} color={colors.dangerText} />
+                ) : null}
               </Pressable>
             );
           })}
@@ -681,7 +691,8 @@ const styles = StyleSheet.create({
   kana: { ...type.kana, marginTop: spacing.xs },
   meaning: { ...type.zh, marginTop: spacing.md },
   explanation: { ...type.body, marginTop: spacing.md },
-  tips: { ...type.body, color: colors.amber, marginTop: spacing.sm },
+  tipsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs, marginTop: spacing.sm },
+  tips: { ...type.body, color: colors.warningText, flex: 1 },
   example: {
     marginTop: spacing.md,
     paddingLeft: spacing.md,
@@ -693,18 +704,15 @@ const styles = StyleSheet.create({
   zh: { ...type.body, color: colors.textSecondary },
 
   introBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  introEmoji: { fontSize: 48 },
   introTitle: { ...type.h1, marginTop: spacing.md },
   introSub: { ...type.body, color: colors.textSecondary, marginTop: spacing.xs },
   introList: {
     marginTop: spacing.xl,
     alignSelf: 'stretch',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    ...shadow.card,
+    ...elevation.elevated,
   },
   introItem: { ...type.jaSmall, paddingVertical: 3 },
   introReading: { ...type.kana, fontWeight: '400' },
@@ -716,24 +724,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.border,
     padding: spacing.lg,
   },
-  optionText: { ...type.zh, flex: 1 },
+  optionText: { ...type.body, flex: 1 },
   optionTextStrong: { fontWeight: '700' },
-  markCorrect: { color: colors.successText, fontWeight: '700', fontSize: 16, marginLeft: spacing.sm },
-  markWrong: { color: colors.dangerText, fontWeight: '700', fontSize: 16, marginLeft: spacing.sm },
   input: {
     marginTop: spacing.lg,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.border,
     padding: spacing.lg,
-    ...type.zh,
+    ...type.body,
+    // 有意偏离字阶：答题输入框需要比正文更大，便于核对拼写
     fontSize: 18,
   },
   inputMultiline: { minHeight: 110, textAlignVertical: 'top' },
@@ -750,7 +757,6 @@ const styles = StyleSheet.create({
   revealText: { ...type.body, color: colors.primaryText, fontWeight: '600' },
 
   hint: { ...type.body, color: colors.textSecondary, marginTop: spacing.md },
-  errorIcon: { fontSize: 40, marginBottom: spacing.md },
   error: { ...type.body, color: colors.dangerText, textAlign: 'center' },
   errorBtn: { marginTop: spacing.lg, alignSelf: 'stretch' },
 });

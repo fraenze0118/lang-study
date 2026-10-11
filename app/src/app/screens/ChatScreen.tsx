@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation';
 import {
@@ -22,9 +22,10 @@ import { getOverview, ProgressOverview } from '../../features/progress/service';
 import { insertMessage } from '../../db/chatRepo';
 import { ChatMessage } from '../../lib/types';
 import { DEFAULT_USER_ID } from '../../features/learn/service';
-import { colors, radius, shadow, spacing, type } from '../../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../../lib/theme';
 import { tapFeedback } from '../../lib/haptics';
 import AppButton from '../../components/AppButton';
+import AppIcon, { IconName } from '../../components/AppIcon';
 import ProgressBar from '../../components/ProgressBar';
 import StreakChip from '../../components/StreakChip';
 import LanguageSwitcher from '../../components/LanguageSwitcher';
@@ -37,11 +38,17 @@ type ListItem =
   | { kind: 'message'; message: ChatMessage }
   | { kind: 'preview'; preview: ContentPreview };
 
-const QUICK: { label: string; sub: string; icon: string; kind: QuickKind; accent: string }[] = [
-  { label: '帮我安排', sub: '按水平推荐', icon: '✧', kind: 'suggest', accent: colors.primary },
-  { label: '自定义主题', sub: '如流行词', icon: '✦', kind: 'custom', accent: colors.amber },
-  { label: '复习', sub: '到期内容', icon: '↻', kind: 'review', accent: colors.success },
-  { label: '问 AI', sub: '随时答疑', icon: '?', kind: 'ask', accent: colors.info },
+const QUICK: {
+  label: string;
+  sub: string;
+  icon: IconName;
+  kind: QuickKind;
+  accent: string;
+}[] = [
+  { label: '帮我安排', sub: '按水平推荐', icon: 'lesson', kind: 'suggest', accent: colors.primary },
+  { label: '自定义主题', sub: '如流行词', icon: 'celebrate', kind: 'custom', accent: colors.warning },
+  { label: '复习', sub: '到期内容', icon: 'review', kind: 'review', accent: colors.success },
+  { label: '问 AI', sub: '随时答疑', icon: 'chat', kind: 'ask', accent: colors.info },
 ];
 
 export default function ChatScreen({ navigation }: Props) {
@@ -197,7 +204,7 @@ export default function ChatScreen({ navigation }: Props) {
             accessibilityLabel="设置"
             onPress={() => navigation.navigate('Settings')}
           >
-            <Text style={styles.iconText}>⚙︎</Text>
+            <AppIcon name="settings" size={20} />
           </Pressable>
         </View>
 
@@ -231,18 +238,18 @@ export default function ChatScreen({ navigation }: Props) {
         {/* 二级入口：低饱和、等宽，不与主信息争注意力 */}
         <View style={styles.navRow}>
           <Pressable style={styles.navBtn} onPress={() => navigation.navigate('Review')}>
-            <Text style={styles.navIcon}>↻</Text>
+            <AppIcon name="review" size={15} />
             <Text style={styles.navLabel}>复习</Text>
             {(overview?.dueCount ?? 0) > 0 ? (
               <Text style={styles.navBadge}>{overview?.dueCount}</Text>
             ) : null}
           </Pressable>
           <Pressable style={styles.navBtn} onPress={() => navigation.navigate('Knowledge')}>
-            <Text style={styles.navIcon}>☰</Text>
+            <AppIcon name="knowledge" size={15} />
             <Text style={styles.navLabel}>知识库</Text>
           </Pressable>
           <Pressable style={styles.navBtn} onPress={() => navigation.navigate('Progress')}>
-            <Text style={styles.navIcon}>◔</Text>
+            <AppIcon name="progress" size={15} />
             <Text style={styles.navLabel}>记录</Text>
           </Pressable>
         </View>
@@ -288,8 +295,8 @@ export default function ChatScreen({ navigation }: Props) {
       <View style={styles.quickGrid}>
         {QUICK.map((q) => (
           <Pressable key={q.label} style={styles.quickCard} onPress={() => runQuick(q.kind)}>
-            <View style={[styles.quickIconWrap, { backgroundColor: `${q.accent}1A` }]}>
-              <Text style={[styles.quickIcon, { color: q.accent }]}>{q.icon}</Text>
+            <View style={[styles.quickIconWrap, { backgroundColor: `${q.accent}14` }]}>
+              <AppIcon name={q.icon} size={18} color={q.accent} />
             </View>
             <Text style={styles.quickLabel}>{q.label}</Text>
             <Text style={styles.quickSub}>{q.sub}</Text>
@@ -304,7 +311,7 @@ export default function ChatScreen({ navigation }: Props) {
           value={input}
           onChangeText={setInput}
           placeholder="说你想学什么…"
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={colors.textTertiary}
           multiline
         />
         <Pressable
@@ -312,7 +319,11 @@ export default function ChatScreen({ navigation }: Props) {
           onPress={() => send(input)}
           disabled={loading}
         >
-          <Text style={styles.sendText}>{loading ? '…' : '➤'}</Text>
+          {loading ? (
+            <ActivityIndicator size="small" color={colors.textOnPrimary} />
+          ) : (
+            <AppIcon name="send" size={22} color={colors.textOnPrimary} />
+          )}
         </Pressable>
       </View>
     </View>
@@ -331,7 +342,7 @@ function Avatar({ label }: { label: string }) {
 function PreviewCard({ preview, onStart }: { preview: ContentPreview; onStart: () => void }) {
   return (
     <View style={styles.preview}>
-      <Text style={styles.previewTitle}>📚 学习内容预览</Text>
+      <Text style={styles.previewTitle}>学习内容预览</Text>
       <Text style={styles.previewReason}>{preview.reason}</Text>
       {preview.items.map((it, i) => (
         <View key={i} style={styles.previewItem}>
@@ -374,7 +385,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconText: { fontSize: 19, color: colors.textSecondary },
+
 
   // —— 今日目标：一行表达，进度条只做点缀 ——
   goalRow: {
@@ -406,7 +417,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.surface,
   },
-  navIcon: { fontSize: 13, color: colors.textSecondary },
+
   navLabel: { ...type.caption, color: colors.text },
   navBadge: {
     ...type.caption,
@@ -432,19 +443,20 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.xs,
   },
   // 头像降饱和：原来两个都是高饱和橙/蓝，和气泡一起把整屏颜色搅乱
-  avatarAi: { backgroundColor: colors.primarySoftStrong },
-  avatarUser: { backgroundColor: colors.trackBg },
-  avatarText: { fontSize: 10, fontWeight: '700' },
+  avatarAi: { backgroundColor: colors.primarySoft },
+  avatarUser: { backgroundColor: colors.surfaceSunken },
+  // 有意偏离字阶：头像只有 1~2 个字符，caption(12) 塞不下 28px 圆内
+  avatarText: { ...type.caption, fontWeight: '700', color: colors.textSecondary, fontSize: 10 },
   bubble: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, maxWidth: '76%' },
   // 用户气泡用浅暖底 + 深字，不再整块高饱和橙：一屏里橙色只留主按钮
-  userBubble: { backgroundColor: colors.primarySoftStrong, borderRadius: radius.xl },
+  userBubble: { backgroundColor: colors.primarySoft, borderRadius: radius.xl },
+  // AI 气泡用白底 + 轻投影分层，而不是描边
   aiBubble: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    ...elevation.elevated,
   },
-  bubbleText: { ...type.body, lineHeight: 22, color: colors.text },
+  bubbleText: { ...type.body },
   userBubbleText: { color: colors.primaryText },
 
   quickGrid: {
@@ -456,13 +468,11 @@ const styles = StyleSheet.create({
   },
   quickCard: {
     width: '48%',
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    ...shadow.card,
+    ...elevation.elevated,
   },
   quickIconWrap: {
     width: 32,
@@ -471,7 +481,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quickIcon: { fontSize: 17, fontWeight: '700' },
+
   quickLabel: { ...type.body, fontWeight: '700', marginTop: spacing.sm },
   quickSub: { ...type.caption },
 
@@ -507,37 +517,34 @@ const styles = StyleSheet.create({
   sendText: { color: colors.textOnPrimary, fontSize: 18, fontWeight: '700' },
 
   preview: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
     padding: spacing.lg,
     marginBottom: spacing.md,
     marginLeft: 36,
-    ...shadow.card,
+    ...elevation.floating,
   },
-  previewTitle: { ...type.h2, color: colors.primaryText, fontSize: 16 },
+  previewTitle: { ...type.headline },
   previewReason: {
     ...type.caption,
-    color: colors.primaryText,
     marginTop: spacing.xs,
     marginBottom: spacing.md,
   },
   previewItem: {
     paddingVertical: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.primaryBorder,
+    borderBottomColor: colors.border,
   },
-  previewSurface: { ...type.jaSmall, fontSize: 17 },
+  previewSurface: { ...type.headline },
   previewReading: { ...type.caption, fontWeight: '400' },
-  previewMeaning: { ...type.caption, color: colors.text, marginBottom: 2 },
+  previewMeaning: { ...type.caption, color: colors.textSecondary, marginBottom: 2 },
   previewGrammarBox: {
     marginTop: spacing.md,
     padding: spacing.sm,
-    backgroundColor: colors.primarySoftStrong,
+    backgroundColor: colors.surfaceSunken,
     borderRadius: radius.sm,
   },
-  previewGrammar: { ...type.body, color: colors.primaryText },
+  previewGrammar: { ...type.subhead, color: colors.text },
   startBtn: {
     backgroundColor: colors.primary,
     paddingVertical: 13,
@@ -545,5 +552,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
   },
-  startBtnText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
+  startBtnText: { ...type.bodyStrong, color: colors.textOnPrimary, fontWeight: '700' },
 });

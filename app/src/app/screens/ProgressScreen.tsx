@@ -7,10 +7,11 @@ import { getDayTotals, getOverview, ProgressOverview } from '../../features/prog
 import { localDateKey, recentDateKeys } from '../../features/progress/streak';
 import { getActiveLanguageId } from '../../features/profile/languageService';
 import { getLanguageProfile } from '../../lib/languages';
-import { colors, radius, shadow, spacing, type } from '../../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../../lib/theme';
 import ProgressBar from '../../components/ProgressBar';
 import StreakChip from '../../components/StreakChip';
 import PageHeader from '../../components/PageHeader';
+import AppIcon from '../../components/AppIcon';
 
 const WEEK_DAYS = 7;
 
@@ -73,8 +74,13 @@ export default function ProgressScreen() {
           />
           <Text style={styles.cardMeta}>
             {Math.min(overview.xpToday, overview.streak.goalXp)} / {overview.streak.goalXp} XP
-            {overview.streak.todayDone ? ' · 已达成 ✅' : ''}
           </Text>
+          {overview.streak.todayDone ? (
+            <View style={styles.doneRow}>
+              <AppIcon name="correct" size={14} color={colors.successText} />
+              <Text style={styles.doneText}>已达成</Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -157,7 +163,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     padding: spacing.lg,
-    ...shadow.card,
+    ...elevation.elevated,
   },
   cardHead: {
     flexDirection: 'row',
@@ -165,8 +171,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  cardTitle: { ...type.h2, fontSize: 16 },
+  cardTitle: { ...type.headline },
   cardMeta: { ...type.caption, marginTop: spacing.sm },
+  doneRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.xs },
+  doneText: { ...type.caption, color: colors.successText, fontWeight: '600' },
 
   chart: {
     flexDirection: 'row',
@@ -176,10 +184,10 @@ const styles = StyleSheet.create({
     height: 120,
   },
   chartCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', height: '100%' },
-  chartValue: { ...type.caption, fontSize: 10 },
+  chartValue: { ...type.caption, fontWeight: '600' },
   chartTrack: { flex: 1, width: '70%', justifyContent: 'flex-end', marginVertical: spacing.xs },
   chartBar: { width: '100%', borderRadius: radius.sm },
-  chartLabel: { ...type.caption, fontSize: 10 },
+  chartLabel: { ...type.caption },
   chartLabelToday: { color: colors.primary, fontWeight: '700' },
 
   title: { ...type.h2, marginTop: spacing.xl, marginBottom: spacing.sm },

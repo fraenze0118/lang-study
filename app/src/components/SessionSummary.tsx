@@ -1,12 +1,13 @@
 // 结算页：正确率 / 最高连击 / 获得经验 / 连续天数 / 每日目标推进 + 难度反馈
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow, spacing, type } from '../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../lib/theme';
 import { usePopIn } from '../lib/anim';
 import { celebrateFeedback } from '../lib/haptics';
 import { Feedback } from '../lib/enums';
 import { accuracy, isSessionPerfect } from '../features/progress/xp';
 import AppButton from './AppButton';
+import AppIcon, { IconName } from './AppIcon';
 import ProgressBar from './ProgressBar';
 
 interface Props {
@@ -56,7 +57,13 @@ export default function SessionSummary({
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={style}>
-        <Text style={styles.emoji}>{perfect && total > 0 ? '🏆' : '🎉'}</Text>
+        <View style={styles.badgeWrap}>
+          <AppIcon
+            name={perfect && total > 0 ? 'perfect' : 'celebrate'}
+            size={44}
+            color={colors.primary}
+          />
+        </View>
         <Text style={styles.title}>
           {total === 0 ? '本批没有练习题' : perfect ? '全部答对！' : '本批完成！'}
         </Text>
@@ -70,7 +77,7 @@ export default function SessionSummary({
 
         <View style={styles.statRow}>
           <Stat label="获得经验" value={`+${xpEarned}`} highlight />
-          <Stat label="最高连击" value={maxCombo > 0 ? `🔥 ${maxCombo}` : '—'} />
+          <Stat label="最高连击" value={maxCombo > 0 ? String(maxCombo) : '—'} icon="streak" />
         </View>
 
         {/* 每日目标 */}
@@ -82,16 +89,28 @@ export default function SessionSummary({
                 {Math.min(todayXp, dailyGoalXp)} / {dailyGoalXp} XP
               </Text>
             </View>
-            <ProgressBar ratio={goalRatio} height={12} color={goalReached ? colors.success : colors.primary} />
-            <Text style={styles.goalHint}>
-              {goalReached ? '今日目标已达成，连续天数保住了 ✅' : `再学 ${dailyGoalXp - todayXp} XP 即可达成今日目标`}
-            </Text>
+            <ProgressBar
+              ratio={goalRatio}
+              height={12}
+              color={goalReached ? colors.success : colors.primary}
+            />
+            <View style={styles.goalHintRow}>
+              {goalReached ? (
+                <AppIcon name="correct" size={14} color={colors.successText} />
+              ) : null}
+              <Text style={styles.goalHint}>
+                {goalReached
+                  ? '今日目标已达成，连续天数保住了'
+                  : `再学 ${dailyGoalXp - todayXp} XP 即可达成今日目标`}
+              </Text>
+            </View>
           </View>
         ) : null}
 
         {streakDays > 0 ? (
           <View style={styles.streakBox}>
-            <Text style={styles.streakText}>🔥 连续第 {streakDays} 天</Text>
+            <AppIcon name="streak" size={18} color={colors.streak} />
+            <Text style={styles.streakText}>连续第 {streakDays} 天</Text>
           </View>
         ) : null}
 
@@ -138,7 +157,7 @@ export default function SessionSummary({
           <AppButton
             label="重做错题"
             variant="ghost"
-            icon="↻"
+            icon="review"
             onPress={onRetryWrong}
             style={styles.action}
           />
@@ -150,10 +169,23 @@ export default function SessionSummary({
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function Stat({
+  label,
+  value,
+  highlight,
+  icon,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  icon?: IconName;
+}) {
   return (
     <View style={styles.statBox}>
-      <Text style={[styles.statValue, highlight && styles.statValueHighlight]}>{value}</Text>
+      <View style={styles.statValueRow}>
+        {icon ? <AppIcon name={icon} size={18} color={colors.streak} /> : null}
+        <Text style={[styles.statValue, highlight && styles.statValueHighlight]}>{value}</Text>
+      </View>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -161,43 +193,45 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, paddingBottom: spacing.xxl, backgroundColor: colors.appBg, flexGrow: 1 },
-  emoji: { fontSize: 52, textAlign: 'center', marginTop: spacing.xl },
-  title: { ...type.h1, textAlign: 'center', marginTop: spacing.md, fontSize: 24 },
+  badgeWrap: { alignItems: 'center', marginTop: spacing.xl },
+  title: { ...type.title3, textAlign: 'center', marginTop: spacing.md },
   subtitle: { ...type.body, textAlign: 'center', color: colors.textSecondary, marginTop: spacing.xs },
   statRow: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
   statBox: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     paddingVertical: spacing.lg,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    ...shadow.card,
+    ...elevation.elevated,
   },
-  statValue: { ...type.stat },
+  statValueRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  statValue: { ...type.title1 },
   statValueHighlight: { color: colors.success },
   statLabel: { ...type.caption, marginTop: spacing.xs },
   goalBox: {
     marginTop: spacing.lg,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    ...elevation.elevated,
   },
   goalHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
-  goalLabel: { ...type.label },
-  goalValue: { ...type.label, color: colors.primary },
-  goalHint: { ...type.caption, marginTop: spacing.sm },
+  goalLabel: { ...type.captionStrong },
+  goalValue: { ...type.captionStrong, color: colors.primary },
+  goalHintRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.sm },
+  goalHint: { ...type.caption },
   streakBox: {
-    marginTop: spacing.md,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
     paddingVertical: spacing.md,
     backgroundColor: colors.primarySoft,
     borderRadius: radius.lg,
   },
-  streakText: { ...type.h2, color: colors.primaryText },
+  streakText: { ...type.headline, color: colors.primaryText },
   feedbackBox: { marginTop: spacing.xl },
   feedbackLabel: { ...type.label, textAlign: 'center', marginBottom: spacing.sm },
   feedbackRow: { flexDirection: 'row', gap: spacing.sm },

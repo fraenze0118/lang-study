@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     alignItems: 'center',
   },
-  surface: { ...type.jaSmall, fontSize: 16 },
+  surface: { ...type.bodyStrong },
   meaning: { ...type.caption, marginTop: 2 },
   empty: { ...type.body, color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
 });

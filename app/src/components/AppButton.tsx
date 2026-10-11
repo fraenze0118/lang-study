@@ -10,8 +10,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { BUTTON_DEPTH, colors, radius, shadow, spacing, type } from '../lib/theme';
+import { BUTTON_DEPTH, colors, elevation, radius, spacing, type } from '../lib/theme';
 import { tapFeedback } from '../lib/haptics';
+import AppIcon, { IconName } from './AppIcon';
 
 export type ButtonVariant = 'primary' | 'success' | 'danger' | 'ghost';
 
@@ -34,8 +35,8 @@ interface Props {
   variant?: ButtonVariant;
   disabled?: boolean;
   loading?: boolean;
-  /** 左侧图标字符（emoji 或符号） */
-  icon?: string;
+  /** 左侧图标（语义名，见 AppIcon） */
+  icon?: IconName;
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
   /** 供测试/无障碍识别 */
@@ -103,10 +104,18 @@ export default function AppButton({
         {loading ? (
           <ActivityIndicator color={palette.text} />
         ) : (
-          <Text style={[styles.label, { color: isInert ? colors.textSecondary : palette.text }]}>
-            {icon ? `${icon} ` : ''}
-            {label}
-          </Text>
+          <View style={styles.labelRow}>
+            {icon ? (
+              <AppIcon
+                name={icon}
+                size={18}
+                color={isInert ? colors.textDisabled : palette.text}
+              />
+            ) : null}
+            <Text style={[styles.label, { color: isInert ? colors.textDisabled : palette.text }]}>
+              {label}
+            </Text>
+          </View>
         )}
       </Animated.View>
     </Pressable>
@@ -131,7 +140,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
-    ...shadow.card,
+    ...elevation.elevated,
   },
-  label: { ...type.body, fontWeight: '700', fontSize: 16 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  label: { ...type.bodyStrong },
 });

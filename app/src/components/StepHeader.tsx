@@ -1,8 +1,9 @@
 // 学习/复习会话自定义头部：取代默认导航标题栏（去掉“词典感”的关键一步）
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, spacing, type } from '../lib/theme';
+import { colors, radius, spacing } from '../lib/theme';
 import { tapFeedback } from '../lib/haptics';
+import AppIcon from './AppIcon';
 import ProgressBar from './ProgressBar';
 
 interface Props {
@@ -33,7 +34,7 @@ export default function StepHeader({ ratio, onClose, right, progressColor }: Pro
             onClose();
           }}
         >
-          <Text style={styles.closeText}>✕</Text>
+          <AppIcon name="close" size={22} color={colors.textSecondary} />
         </Pressable>
         {right ? <View style={styles.right}>{right}</View> : null}
       </View>
@@ -62,6 +63,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeText: { fontSize: 20, color: colors.textSecondary, fontWeight: '600' },
   right: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });

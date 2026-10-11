@@ -4,6 +4,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useSlideIn } from '../lib/anim';
 import { colors, radius, spacing, type } from '../lib/theme';
 import AppButton from './AppButton';
+import AppIcon, { IconName } from './AppIcon';
 
 export interface FeedbackState {
   correct: boolean;
@@ -34,16 +35,14 @@ export default function FeedbackBanner({ state, onContinue, continueLabel = '继
 
   if (!state) return null;
 
-  const palette = state.correct
-    ? { bg: colors.successSoft, text: colors.successText, icon: '✓' }
-    : { bg: colors.dangerSoft, text: colors.dangerText, icon: '✕' };
+  const palette: { bg: string; text: string; icon: IconName } = state.correct
+    ? { bg: colors.successSoft, text: colors.successText, icon: 'correct' }
+    : { bg: colors.dangerSoft, text: colors.dangerText, icon: 'wrong' };
 
   return (
     <Animated.View style={[styles.wrap, { backgroundColor: palette.bg }, style]}>
       <View style={styles.titleRow}>
-        <View style={[styles.iconCircle, { backgroundColor: palette.text }]}>
-          <Text style={styles.iconText}>{palette.icon}</Text>
-        </View>
+        <AppIcon name={palette.icon} size={24} color={palette.text} />
         <Text style={[styles.title, { color: palette.text }]}>{state.title}</Text>
       </View>
 
@@ -88,15 +87,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  iconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
-  title: { ...type.h2 },
+  title: { ...type.headline },
   detail: { ...type.body, marginTop: spacing.sm, fontWeight: '600' },
   explanation: { ...type.body, marginTop: spacing.xs, color: colors.textSecondary },
   continueBtn: { marginTop: spacing.lg },

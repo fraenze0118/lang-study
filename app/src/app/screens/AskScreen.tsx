@@ -4,7 +4,7 @@ import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { RootStackParamList } from '../navigation';
 import { ask, getHistory } from '../../features/ask/service';
 import { ChatMessage } from '../../lib/types';
-import { colors, radius, shadow, spacing, type } from '../../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../../lib/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Ask'>;
 
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    ...shadow.card,
+    ...elevation.elevated,
   },
   bubbleText: { ...type.body, lineHeight: 22 },
   userBubbleText: { color: colors.textOnPrimary },

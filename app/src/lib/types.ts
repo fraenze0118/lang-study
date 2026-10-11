@@ -61,6 +61,15 @@ export interface Item {
   sortOrder: number;
 }
 
+/**
+ * 字母表条目：在 Item 基础上带所属单元标题。
+ * 字母表需要按单元分段（平假名 / 片假名 / 音节拼合 / 收音…），
+ * 而 Item 只有 unitId，所以查询时一并取出标题。
+ */
+export interface ScriptItemRow extends Item {
+  unitTitle: string | null;
+}
+
 export interface ItemExample {
   id: number;
   itemId: string;

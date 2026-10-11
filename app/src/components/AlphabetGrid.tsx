@@ -1,20 +1,27 @@
-// 字母表网格：按单元分组展示某语种的全部字母（日语五十音 / 韩语谚音）
+// 字母表网格：按单元分组展示某语种的全部字母/音节
 //
-// 与知识库列表的区别：数据来自内置大纲而非学习记录，
-// 因此**不受"是否已学"限制**，即使跳过了入门单元也能随时查全表。
+// 设计要点（韩语尤其重要）：
+// 谚文是**拼合文字**，ㄱ/ㅏ 这类只是"部件"，必须组合成 가/한 才是真正的韩语字形。
+// 所以这里会同时呈现「部件」与「拼合后的音节」两类单元，并按单元标题分段，
+// 否则初学者只会看到一堆像偏旁部首的符号。
+//
+// 数据来自内置大纲而非学习记录，因此**不受"是否已学"限制**，跳过入门单元也能查全表。
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getSyllabusItemsByType } from '../db/repo';
-import { Item } from '../lib/types';
+import { ScriptItemRow } from '../lib/types';
 import { getActiveLanguageId } from '../features/profile/languageService';
 import { getLanguageProfile } from '../lib/languages';
-import { colors, radius, shadow, spacing, type } from '../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../lib/theme';
 import { tapFeedback } from '../lib/haptics';
 import { speakText } from '../lib/tts';
+import AppIcon from './AppIcon';
 
 interface Group {
   title: string;
-  items: Item[];
+  items: ScriptItemRow[];
+  /** 单字格宽度比例：字符越长（韩语音节、多字词）占位越宽 */
+  cellWidth: `${number}%`;
 }
 
 export default function AlphabetGrid() {
@@ -22,16 +29,35 @@ export default function AlphabetGrid() {
   const profile = getLanguageProfile(getActiveLanguageId());
 
   useEffect(() => {
-    // 按 unit_id 分组（同一语种的平假名/片假名/浊音等会是不同单元）
     const items = getSyllabusItemsByType(profile.id, profile.scriptUnitKind);
-    const byUnit = new Map<string, Item[]>();
+
+    // 按 unitId 归组，保留查询给定的单元顺序
+    const order: string[] = [];
+    const byUnit = new Map<string, ScriptItemRow[]>();
     for (const it of items) {
       const key = it.unitId ?? '_';
-      const arr = byUnit.get(key);
-      if (arr) arr.push(it);
-      else byUnit.set(key, [it]);
+      if (!byUnit.has(key)) {
+        byUnit.set(key, []);
+        order.push(key);
+      }
+      byUnit.get(key)!.push(it);
     }
-    setGroups([...byUnit.values()].map((its) => ({ title: '', items: its })));
+
+    setGroups(
+      order.map((key) => {
+        const its = byUnit.get(key)!;
+        // 内容越长，每行放得越少：避免韩语「감사합니다」被压成两行
+        const longest = its.reduce((n, it) => Math.max(n, it.surface.length), 1);
+        const cols = longest >= 4 ? 2 : longest >= 2 ? 3 : 4;
+        const gap = 8;
+        const width = ((100 - gap * (cols - 1) / 4) / cols).toFixed(2);
+        return {
+          title: its[0]?.unitTitle ?? '',
+          items: its,
+          cellWidth: `${width}%` as `${number}%`,
+        };
+      }),
+    );
   }, [profile.id, profile.scriptUnitKind]);
 
   const total = groups.reduce((n, g) => n + g.items.length, 0);
@@ -44,32 +70,47 @@ export default function AlphabetGrid() {
       </Text>
 
       {groups.map((g, gi) => (
-        <View key={gi} style={styles.grid}>
-          {g.items.map((it) => (
-            <Pressable
-              key={it.id}
-              style={styles.cell}
-              onPress={() => {
-                tapFeedback();
-                speakText(it.surface, profile.ttsLocale);
-              }}
-            >
-              <Text style={styles.glyph}>{it.surface}</Text>
-              <Text style={styles.reading} numberOfLines={1}>
-                {it.reading}
-              </Text>
-              <Text style={styles.meaning} numberOfLines={2}>
-                {it.meaning}
-              </Text>
-            </Pressable>
-          ))}
+        <View key={gi} style={styles.section}>
+          {g.title ? <Text style={styles.sectionTitle}>{g.title}</Text> : null}
+          <View style={styles.grid}>
+            {g.items.map((it) => (
+              <Pressable
+                key={it.id}
+                style={[styles.cell, { width: g.cellWidth }]}
+                onPress={() => {
+                  tapFeedback();
+                  speakText(it.surface, profile.ttsLocale);
+                }}
+              >
+                <Text
+                  style={styles.glyph}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.5}
+                >
+                  {it.surface}
+                </Text>
+                <Text style={styles.reading} numberOfLines={1}>
+                  {it.reading}
+                </Text>
+                {it.meaning ? (
+                  <Text style={styles.meaning} numberOfLines={2}>
+                    {it.meaning}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
         </View>
       ))}
 
       {total === 0 ? (
-        <Text style={styles.empty}>
-          该语种暂无内置{profile.scriptLabel}数据。补充方式见 docs/mvp/06-syllabus.md。
-        </Text>
+        <View style={styles.emptyBox}>
+          <AppIcon name="empty" size={36} color={colors.textDisabled} />
+          <Text style={styles.empty}>
+            该语种暂无内置{profile.scriptLabel}数据。
+          </Text>
+        </View>
       ) : null}
     </ScrollView>
   );
@@ -77,21 +118,21 @@ export default function AlphabetGrid() {
 
 const styles = StyleSheet.create({
   container: { paddingBottom: spacing.xxl },
-  intro: { ...type.caption, marginBottom: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm },
+  intro: { ...type.subhead, marginBottom: spacing.md },
+  section: { marginBottom: spacing.xl },
+  sectionTitle: { ...type.captionStrong, marginBottom: spacing.sm },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   cell: {
-    width: '22.5%',
-    backgroundColor: colors.bg,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.xs,
     alignItems: 'center',
-    ...shadow.card,
+    ...elevation.elevated,
   },
-  glyph: { ...type.jaWord, fontSize: 28, lineHeight: 36 },
+  glyph: { ...type.title1, textAlign: 'center' },
   reading: { ...type.caption, marginTop: 2 },
   meaning: { ...type.caption, fontSize: 10, textAlign: 'center', marginTop: 2, lineHeight: 13 },
-  empty: { ...type.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl },
+  emptyBox: { alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl },
+  empty: { ...type.body, color: colors.textSecondary, textAlign: 'center' },
 });

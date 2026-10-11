@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native';
 import { KnowledgeGroup } from '../features/knowledge/group';
 import { KnowledgeItem } from '../db/userRepo';
-import { colors, radius, spacing, type } from '../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../lib/theme';
 import { tapFeedback } from '../lib/haptics';
+import AppIcon from './AppIcon';
 import ProgressBar from './ProgressBar';
 
 export function colorOfMastery(mastery: string): string {
@@ -57,7 +58,7 @@ export default function GroupedList({
                 style={styles.headerBar}
               />
             </View>
-            <Text style={styles.chevron}>{isCollapsed ? '▸' : '▾'}</Text>
+            <AppIcon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={16} />
           </Pressable>
         );
       }}
@@ -86,10 +87,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.appBg,
   },
   headerMain: { flex: 1 },
-  headerTitle: { ...type.h2, fontSize: 16 },
+  headerTitle: { ...type.bodyStrong },
   headerMeta: { ...type.caption, marginTop: 2 },
   headerBar: { marginTop: spacing.xs, maxWidth: 140 },
-  chevron: { fontSize: 14, color: colors.textSecondary, marginLeft: spacing.sm },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

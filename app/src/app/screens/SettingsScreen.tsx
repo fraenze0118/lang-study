@@ -26,6 +26,7 @@ import { clearBatchCache } from '../../features/study/service';
 import { exportAll, importAll } from '../../features/backup/service';
 import { colors, radius, spacing, type } from '../../lib/theme';
 import PageHeader from '../../components/PageHeader';
+import AppIcon from '../../components/AppIcon';
 import { checkVoiceAvailable, openTtsSettings } from '../../lib/tts';
 
 const GOALS: { value: Goal; label: string }[] = [
@@ -273,10 +274,16 @@ export default function SettingsScreen({ navigation }: Props) {
       <View style={styles.voiceRow}>
         <Text style={styles.voiceStatus}>
           {voiceStatus === 'checking' && '检测中…'}
-          {voiceStatus === 'ok' && `✅ ${languageProfile.voiceLabel}可用`}
-          {voiceStatus === 'missing' && `⚠️ 未检测到${languageProfile.voiceLabel}`}
+          {voiceStatus === 'ok' && `${languageProfile.voiceLabel}可用`}
+          {voiceStatus === 'missing' && `未检测到${languageProfile.voiceLabel}`}
           {voiceStatus === 'idle' && '未检测'}
         </Text>
+        {voiceStatus === 'ok' ? (
+          <AppIcon name="correct" size={18} color={colors.successText} />
+        ) : null}
+        {voiceStatus === 'missing' ? (
+          <AppIcon name="warning" size={18} color={colors.warningText} />
+        ) : null}
         <Pressable style={styles.voiceBtn} onPress={checkVoice}>
           <Text style={styles.voiceBtnText}>检测</Text>
         </Pressable>
@@ -332,7 +339,7 @@ export default function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.bg },
   container: { padding: spacing.xl, paddingTop: spacing.sm, backgroundColor: colors.bg },
-  label: { ...type.h2, fontSize: 15, marginTop: spacing.xl, marginBottom: spacing.sm },
+  label: { ...type.bodyStrong, marginTop: spacing.xl, marginBottom: spacing.sm },
   hint: { ...type.caption, lineHeight: 19, marginBottom: spacing.sm },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
@@ -371,7 +378,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     borderRadius: radius.pill,
   },
-  voiceBtnText: { ...type.label, color: colors.textOnPrimary, fontSize: 14 },
+  voiceBtnText: { ...type.captionStrong, color: colors.textOnPrimary },
   voiceHint: { ...type.caption, marginTop: spacing.sm, lineHeight: 19 },
   buttonText: { ...type.body, color: colors.textOnPrimary, fontWeight: '700' },
   modal: { flex: 1, padding: spacing.xl, backgroundColor: colors.bg },
@@ -383,14 +390,14 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  jsonText: { fontSize: 12, color: colors.text, lineHeight: 18 },
+  jsonText: { ...type.caption, color: colors.text, lineHeight: 18 },
   importInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
-    fontSize: 12,
+    ...type.caption,
     textAlignVertical: 'top',
     marginBottom: spacing.md,
   },

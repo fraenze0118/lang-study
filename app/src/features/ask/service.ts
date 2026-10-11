@@ -111,7 +111,9 @@ export async function checkSentence(
 
 function formatCheckSentence(r: CheckSentenceResult): string {
   const lines: string[] = [];
-  lines.push(r.isCorrect ? '✅ 句子基本正确' : '❌ 句子有需要改进的地方');
+  // 刻意不用 emoji：该文本会渲染进对话气泡，而界面其余部分一律用矢量图标，
+  // 混入 emoji 会破坏一致性（见 src/lib/theme.ts 的设计原则第 4 条）。
+  lines.push(r.isCorrect ? '句子基本正确' : '句子有需要改进的地方');
   for (const c of r.corrections) {
     lines.push(`- ${c.wrong} → ${c.right}（${c.reason}）`);
   }

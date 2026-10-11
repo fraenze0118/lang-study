@@ -1,7 +1,7 @@
 // 数据访问层：领域服务层通过这里读写 SQLite，页面不直接碰 DB。
 import { getDb } from './database';
 import { ItemType } from '../lib/enums';
-import { Item, ItemExample, Level, Unit } from '../lib/types';
+import { Item, ItemExample, Level, ScriptItemRow, Unit } from '../lib/types';
 
 const ITEM_COLS = `id, unit_id AS unitId, language_id AS languageId, type, surface, reading, accent, pos, conjugation,
   transitivity, meaning, pattern, grammar_category AS grammarCategory,
@@ -113,15 +113,18 @@ export function getItemsWithoutState(userId: string, unitId: string): Item[] {
 }
 
 /** 某语种指定类型的所有内置条目（按单元与排序），用于字母表等参考页 */
-export function getSyllabusItemsByType(languageId: string, type: ItemType): Item[] {
-  return getDb().getAllSync<Item>(
-    `SELECT ${ITEM_COLS
-      .split(',')
-      .map((c) => `i.${c.trim()}`)
-      .join(', ')}
+export function getSyllabusItemsByType(languageId: string, type: ItemType): ScriptItemRow[] {
+  const cols = ITEM_COLS.split(',')
+    .map((c) => `i.${c.trim()}`)
+    .join(', ');
+  // units.sort_order 在每个等级里从 0 重新开始，所以必须 JOIN 后直接按它排序，
+  // 不能用「按 unit_id 排序」或子查询——那样跨等级的单元顺序会乱。
+  return getDb().getAllSync<ScriptItemRow>(
+    `SELECT ${cols}, u.title AS unitTitle
      FROM items i
+     LEFT JOIN units u ON u.id = i.unit_id
      WHERE i.language_id = ? AND i.type = ? AND i.source = 'syllabus'
-     ORDER BY i.unit_id, i.sort_order`,
+     ORDER BY u.sort_order, i.sort_order`,
     languageId,
     type,
   );

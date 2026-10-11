@@ -1,12 +1,12 @@
-// 连击徽章：连击 ≥3 时显示并做脉冲
+// 连击徽章：连击 ≥3 时点亮并做脉冲
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { usePulse } from '../lib/anim';
 import { colors, radius, spacing, type } from '../lib/theme';
 import { XP_COMBO_THRESHOLD } from '../features/progress/xp';
+import AppIcon from './AppIcon';
 
 interface Props {
   combo: number;
-  /** 连击进度（本轮已答对数），用于显示 x/y */
   compact?: boolean;
 }
 
@@ -24,9 +24,12 @@ export default function ComboBadge({ combo, compact = false }: Props) {
         { transform: [{ scale: pulse }] },
       ]}
     >
-      <Text style={[styles.text, active ? styles.textActive : styles.textIdle]}>
-        🔥 {combo}
-      </Text>
+      <AppIcon
+        name="streak"
+        size={14}
+        color={active ? colors.streak : colors.textTertiary}
+      />
+      <Text style={[styles.text, active ? styles.textActive : styles.textIdle]}>{combo}</Text>
       {!compact && active ? <Text style={styles.bonus}>加成中</Text> : null}
     </Animated.View>
   );
@@ -41,10 +44,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radius.pill,
   },
-  chipIdle: { backgroundColor: colors.trackBg },
-  chipActive: { backgroundColor: colors.primarySoftStrong },
-  text: { ...type.label, fontSize: 14 },
-  textIdle: { color: colors.textSecondary },
+  chipIdle: { backgroundColor: colors.surfaceSunken },
+  chipActive: { backgroundColor: colors.primarySoft },
+  text: { ...type.captionStrong },
+  textIdle: { color: colors.textTertiary },
   textActive: { color: colors.primaryText },
-  bonus: { fontSize: 11, color: colors.primaryText, fontWeight: '700' },
+  bonus: { ...type.caption, color: colors.primaryText, fontWeight: '700' },
 });

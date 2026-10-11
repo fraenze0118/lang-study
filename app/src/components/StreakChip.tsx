@@ -1,6 +1,7 @@
 // 连续天数芯片：今日已达成时点亮，否则灰化（不清零，只是提示）
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing, type } from '../lib/theme';
+import AppIcon from './AppIcon';
 
 interface Props {
   days: number;
@@ -12,7 +13,11 @@ export default function StreakChip({ days, todayDone }: Props) {
 
   return (
     <View style={[styles.chip, active ? styles.chipActive : styles.chipIdle]}>
-      <Text style={styles.flame}>{active ? '🔥' : '🕯️'}</Text>
+      <AppIcon
+        name={active ? 'streak' : 'streakIdle'}
+        size={14}
+        color={active ? colors.streak : colors.streakIdle}
+      />
       <Text style={[styles.text, active ? styles.textActive : styles.textIdle]}>
         {days > 0 ? `${days} 天` : '连续 0 天'}
       </Text>
@@ -30,10 +35,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
   },
+  // 未达成用中性底，达成才用暖底 —— 强调色只留给"已获得"的状态
   chipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primaryBorder },
-  chipIdle: { backgroundColor: colors.trackBg, borderColor: colors.border },
-  flame: { fontSize: 14 },
-  text: { ...type.label },
+  chipIdle: { backgroundColor: colors.surfaceSunken, borderColor: colors.border },
+  text: { ...type.caption, fontWeight: '600' },
   textActive: { color: colors.primaryText },
-  textIdle: { color: colors.textSecondary },
+  textIdle: { color: colors.textTertiary },
 });

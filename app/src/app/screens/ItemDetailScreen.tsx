@@ -71,7 +71,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
 
       <AppButton
         label="问 AI"
-        icon="💬"
+        icon="chat"
         onPress={() => navigation.navigate('Ask', { itemId })}
         style={styles.action}
       />
@@ -99,13 +99,13 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  surface: { ...type.jaWord, fontSize: 32 },
+  surface: { ...type.title1 },
   surfaceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   jaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   reading: { ...type.ja, color: colors.textSecondary, marginTop: spacing.xs },
-  meaning: { ...type.zh, fontSize: 18, marginTop: spacing.sm },
+  meaning: { ...type.headline, marginTop: spacing.sm },
   meta: { ...type.caption, marginTop: spacing.xs },
-  subTitle: { ...type.h2, fontSize: 16, marginTop: spacing.xl, marginBottom: spacing.sm },
+  subTitle: { ...type.bodyStrong, marginTop: spacing.xl, marginBottom: spacing.sm },
   example: {
     paddingLeft: spacing.sm,
     borderLeftWidth: 3,

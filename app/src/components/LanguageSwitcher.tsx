@@ -1,8 +1,9 @@
 // 语种切换器：显示当前语种，点击弹出选择器（可切换到已有语种或新增一门）
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, type } from '../lib/theme';
+import { colors, elevation, radius, spacing, type } from '../lib/theme';
 import { tapFeedback } from '../lib/haptics';
+import AppIcon from './AppIcon';
 import { getLanguageProfile, listLanguages } from '../lib/languages';
 import { DEFAULT_USER_ID } from '../lib/constants';
 import {
@@ -38,7 +39,7 @@ export default function LanguageSwitcher({ onChanged }: Props) {
       <Pressable style={styles.chip} onPress={() => setOpen(true)} accessibilityLabel="切换学习语种">
         <Text style={styles.flag}>{profile.flag}</Text>
         <Text style={styles.chipText}>{profile.name}</Text>
-        <Text style={styles.caret}>▾</Text>
+        <AppIcon name="caretDown" size={12} color={colors.primaryText} />
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -63,7 +64,7 @@ export default function LanguageSwitcher({ onChanged }: Props) {
                         {m.profile.nativeName} · {m.profile.levelSystem} {m.levelCode}
                       </Text>
                     </View>
-                    {active ? <Text style={styles.check}>✓</Text> : null}
+                    {active ? <AppIcon name="check" size={18} color={colors.primary} /> : null}
                   </Pressable>
                 );
               })}
@@ -112,9 +113,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primaryBorder,
   },
-  flag: { fontSize: 14 },
-  chipText: { ...type.label, color: colors.primaryText },
-  caret: { fontSize: 10, color: colors.primaryText },
+  flag: { ...type.subhead },
+  chipText: { ...type.captionStrong, color: colors.primaryText },
 
   backdrop: {
     flex: 1,
@@ -123,12 +123,13 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   sheet: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surface,
     borderRadius: radius.xl,
     padding: spacing.lg,
     maxHeight: '75%',
+    ...elevation.overlay,
   },
-  sheetTitle: { ...type.h2, fontSize: 17 },
+  sheetTitle: { ...type.headline },
   sheetHint: { ...type.caption, marginTop: spacing.xs, marginBottom: spacing.md },
   list: { marginTop: spacing.xs },
   sectionLabel: { ...type.label, marginTop: spacing.lg, marginBottom: spacing.sm },
@@ -144,10 +145,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   rowActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  rowFlag: { fontSize: 22 },
+  rowFlag: { ...type.title3 },
   rowMain: { flex: 1 },
   rowTitle: { ...type.body, fontWeight: '700' },
   rowSub: { ...type.caption },
-  check: { fontSize: 18, color: colors.primary, fontWeight: '700' },
   plus: { fontSize: 18, color: colors.primary, fontWeight: '700' },
 });

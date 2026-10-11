@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import { speakText } from '../lib/tts';
 import { tapFeedback } from '../lib/haptics';
+import { colors } from '../lib/theme';
+import AppIcon from './AppIcon';
 
 interface Props {
   text: string;
@@ -22,7 +24,7 @@ export default function SpeakerButton({ text, locale, size = 18 }: Props) {
         speakText(text, locale);
       }}
     >
-      <Text style={{ fontSize: size }}>🔊</Text>
+      <AppIcon name="speak" size={size} color={colors.primary} />
     </Pressable>
   );
 }
