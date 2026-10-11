@@ -138,14 +138,22 @@ function Save-Png($bmp, [string]$path) {
   Write-Host "generated: $path"
 }
 
-# Full-bleed general icon: glyph ~56% of the canvas, nudged down to sit optically centred
-Save-Png (Draw-Icon 1024 $false 0.56 0.030) (Join-Path $assets 'icon.png')
-# Android crops the 108dp adaptive canvas down to ~72dp visible, so the foreground
-# glyph has to be ~1.44x larger in absolute terms than the full-bleed one to look
-# the same size on the launcher (0.56 * 1.44 ~= 0.81). Getting this wrong is why
-# adaptive icons usually render tiny inside the mask.
-Save-Png (Draw-Icon 1024 $true 0.81 0.030) (Join-Path $assets 'adaptive-icon.png')
-Save-Png (Draw-Icon 512 $true 0.81 0.030) (Join-Path $assets 'splash-icon.png')
+# Full-bleed general icon (iOS / legacy Android). Same safe-radius rule as the
+# adaptive foreground: launchers and iOS both overlay a mask, so the glyph's
+# bounding-box corners must stay inside the inscribed circle of the tile
+# (radius = canvas/3, i.e. 341px at 1024). Without this the kana's corner spikes
+# visibly cross the rounded frame.
+Save-Png (Draw-Icon 1024 $false 0.48 0.030) (Join-Path $assets 'icon.png')
+# Android adaptive foreground. The launcher crops the 108dp canvas to a visible
+# window and a round mask only guarantees the inscribed circle of it, so the
+# glyph's bounding-box corners must stay inside that circle or they poke out of
+# the tile -- which is exactly the bug this value fixes: the previous 0.81
+# overflowed the safe radius by 71% and the kana visibly broke the rounded frame.
+Save-Png (Draw-Icon 1024 $true 0.48 0.030) (Join-Path $assets 'adaptive-icon.png')
+# Splash mark is composited on the orange splash background by the native splash
+# screen and is never launcher-masked, so it only needs to look right inside that
+# square: same glyph-to-visible-tile ratio as the icon (0.48 / 0.667 ~= 0.72).
+Save-Png (Draw-Icon 512 $true 0.72 0.030) (Join-Path $assets 'splash-icon.png')
 
 # Legibility proof: downsample the finished icon to launcher size.
 $full = [System.Drawing.Image]::FromFile((Join-Path $assets 'icon.png'))
