@@ -86,7 +86,10 @@ export default function KnowledgeScreen({ navigation }: Props) {
           accessibilityLabel={`开始复习，${stats.dueCount} 条待复习`}
           onPress={() => navigation.navigate('Review')}
         >
-          <AppIcon name="review" size={18} color={colors.textOnPrimary} />
+          {/* 用 play 而非 refresh：后者会被读成"刷新"。
+              带文字是为了消除「待复习(统计)」与「开始复习(动作)」的歧义。 */}
+          <AppIcon name="startReview" size={16} color={colors.textOnPrimary} />
+          <Text style={styles.reviewBtnText}>复习</Text>
           {stats.dueCount > 0 ? <Text style={styles.reviewBadge}>{stats.dueCount}</Text> : null}
         </Pressable>
       </View>
@@ -192,6 +195,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   reviewBadge: { ...type.captionStrong, color: colors.textOnPrimary },
+  reviewBtnText: { ...type.captionStrong, color: colors.textOnPrimary },
   search: {
     borderWidth: 1,
     borderColor: colors.border,

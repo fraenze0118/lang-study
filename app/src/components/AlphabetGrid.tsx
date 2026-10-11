@@ -7,7 +7,14 @@
 //
 // 数据来自内置大纲而非学习记录，因此**不受"是否已学"限制**，跳过入门单元也能查全表。
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { getSyllabusItemsByType } from '../db/repo';
 import { ScriptItemRow } from '../lib/types';
 import { getActiveLanguageId } from '../features/profile/languageService';
@@ -17,16 +24,25 @@ import { tapFeedback } from '../lib/haptics';
 import { speakText } from '../lib/tts';
 import AppIcon from './AppIcon';
 
+/** 固定 3 列。原先按"字符长度"算列数，但公式把像素当百分比用，
+ *  导致 `4 × 22.75% + 3 × 8px > 100%`，每行只能放 3 个、右侧空出一列。 */
+const COLS = 3;
+const GAP = spacing.sm;
+
 interface Group {
   title: string;
   items: ScriptItemRow[];
-  /** 单字格宽度比例：字符越长（韩语音节、多字词）占位越宽 */
-  cellWidth: `${number}%`;
 }
 
 export default function AlphabetGrid() {
   const [groups, setGroups] = useState<Group[]>([]);
   const profile = getLanguageProfile(getActiveLanguageId());
+  const { width: windowWidth } = useWindowDimensions();
+
+  // 用实测宽度算格子尺寸，彻底避开百分比 + 像素混算的取整误差
+  const horizontalPadding = spacing.lg * 2; // KnowledgeScreen body 的内距
+  const available = windowWidth - horizontalPadding;
+  const cellWidth = Math.floor((available - GAP * (COLS - 1)) / COLS);
 
   useEffect(() => {
     const items = getSyllabusItemsByType(profile.id, profile.scriptUnitKind);
@@ -46,16 +62,7 @@ export default function AlphabetGrid() {
     setGroups(
       order.map((key) => {
         const its = byUnit.get(key)!;
-        // 内容越长，每行放得越少：避免韩语「감사합니다」被压成两行
-        const longest = its.reduce((n, it) => Math.max(n, it.surface.length), 1);
-        const cols = longest >= 4 ? 2 : longest >= 2 ? 3 : 4;
-        const gap = 8;
-        const width = ((100 - gap * (cols - 1) / 4) / cols).toFixed(2);
-        return {
-          title: its[0]?.unitTitle ?? '',
-          items: its,
-          cellWidth: `${width}%` as `${number}%`,
-        };
+        return { title: its[0]?.unitTitle ?? '', items: its };
       }),
     );
   }, [profile.id, profile.scriptUnitKind]);
@@ -76,7 +83,7 @@ export default function AlphabetGrid() {
             {g.items.map((it) => (
               <Pressable
                 key={it.id}
-                style={[styles.cell, { width: g.cellWidth }]}
+                style={[styles.cell, { width: cellWidth }]}
                 onPress={() => {
                   tapFeedback();
                   speakText(it.surface, profile.ttsLocale);
@@ -86,7 +93,7 @@ export default function AlphabetGrid() {
                   style={styles.glyph}
                   numberOfLines={1}
                   adjustsFontSizeToFit
-                  minimumFontScale={0.5}
+                  minimumFontScale={0.45}
                 >
                   {it.surface}
                 </Text>
@@ -107,9 +114,7 @@ export default function AlphabetGrid() {
       {total === 0 ? (
         <View style={styles.emptyBox}>
           <AppIcon name="empty" size={36} color={colors.textDisabled} />
-          <Text style={styles.empty}>
-            该语种暂无内置{profile.scriptLabel}数据。
-          </Text>
+          <Text style={styles.empty}>该语种暂无内置{profile.scriptLabel}数据。</Text>
         </View>
       ) : null}
     </ScrollView>
@@ -121,7 +126,7 @@ const styles = StyleSheet.create({
   intro: { ...type.subhead, marginBottom: spacing.md },
   section: { marginBottom: spacing.xl },
   sectionTitle: { ...type.captionStrong, marginBottom: spacing.sm },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GAP },
   cell: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -136,3 +141,4 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: 'center', gap: spacing.sm, marginTop: spacing.xl },
   empty: { ...type.body, color: colors.textSecondary, textAlign: 'center' },
 });
+

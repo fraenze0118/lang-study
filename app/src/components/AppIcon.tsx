@@ -11,7 +11,12 @@ import { colors } from '../lib/theme';
 export const icons = {
   // 导航与入口
   settings: 'settings-outline',
+  // 注意区分两者：
+  //  - review  = 「复习队列/待办」概念，刷新式语义，用于导航入口
+  //  - play    = 「开始一个动作」，用于触发型的「开始复习」按钮
+  //    之前知识库的「开始复习」误用了 review(↻)，用户会读成"刷新"。
   review: 'refresh-outline',
+  startReview: 'play',
   knowledge: 'library-outline',
   progress: 'stats-chart-outline',
   alphabet: 'text-outline',
