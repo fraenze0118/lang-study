@@ -1,10 +1,32 @@
+# ---- 依赖与构建产物 ----
 node_modules/
-.expo/
-dist/
-web-build/
-*.log
+app/node_modules/
+app/android/
+app/ios/
+app/dist/
+app/web-build/
+app/.expo/
+app/.expo-shared/
+
+# ---- 密钥与本地配置 ----
 .env
-.expo-shared/
+app/.env
+*.log
+
+# ---- DSH 沙箱工作目录（仅本机存在，不应入库）----
+.appdata/
+.home/
+.localappdata/
+.npm-cache/
+.npm-logs/
+tmp/
+
+# ---- 本机临时目录（排查时产生）----
+damaged-backup-*/
+git-backup-app-root/
+
+# ---- 系统/编辑器 ----
 .DS_Store
-android/
-ios/
+Thumbs.db
+.idea/
+*.swp
