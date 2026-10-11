@@ -9,30 +9,114 @@ const LEGACY_LANGUAGE_ID = 'ja';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
+/** 建库时校验的关键结构：表 → 必须存在的列（空数组表示只校验表本身） */
+const REQUIRED_SCHEMA: Record<string, string[]> = {
+  languages: [],
+  levels: [],
+  units: [],
+  items: ['language_id'],
+  item_examples: ['pronunciation'],
+  user_languages: [],
+  app_preferences: [],
+  user_item_states: [],
+};
+
+/**
+ * 校验库结构是否与当前代码匹配。
+ *
+ * 为什么需要：迁移只信任 `PRAGMA user_version`。如果某次迁移中途失败、
+ * 或者设备上残留了一份"版本号已是新值、表结构却还是旧的"数据库，
+ * 迁移守卫会直接放行，随后任何查询都会以
+ * `no such column: language_id` 之类的错误崩在页面里（很难定位）。
+ * 这里显式核对关键表与列，让启动阶段就能发现并自愈。
+ */
+function hasRequiredSchema(database: SQLite.SQLiteDatabase): boolean {
+  for (const [table, columns] of Object.entries(REQUIRED_SCHEMA)) {
+    if (!hasTable(database, table)) {
+      console.warn(`[db] missing table: ${table}`);
+      return false;
+    }
+    for (const col of columns) {
+      if (!hasColumn(database, table, col)) {
+        console.warn(`[db] missing column: ${table}.${col}`);
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 export function getDb(): SQLite.SQLiteDatabase {
   if (!db) {
-    db = SQLite.openDatabaseSync(DB_NAME);
-    migrate(db);
+    const opened = SQLite.openDatabaseSync(DB_NAME);
+    let needsRebuild = false;
+
+    // 迁移失败也要兜住：旧库结构千奇百怪，任何一步 ALTER/UPDATE 都可能抛错。
+    // 之前这里直接把异常抛给调用方，自愈逻辑根本执行不到，App 会每次启动都崩。
+    try {
+      migrate(opened);
+    } catch (e) {
+      console.warn('[db] migration failed -> will rebuild', e);
+      needsRebuild = true;
+    }
+
+    if (!needsRebuild) {
+      needsRebuild = !hasRequiredSchema(opened);
+      if (needsRebuild) console.warn('[db] schema incomplete -> rebuilding');
+    }
+
+    if (needsRebuild) {
+      // 原地 DROP + 重建：不删文件，避开 Android 上"文件仍被占用"的问题
+      rebuildSchema(opened);
+      if (!hasRequiredSchema(opened)) {
+        throw new Error('数据库结构不完整，且重建后仍未修复');
+      }
+    }
+
+    db = opened;
   }
   return db;
 }
 
+/** 建库时会用到的全部表（rebuildSchema 需要逐个 DROP） */
+const ALL_TABLES = [
+  'app_preferences',
+  'user_languages',
+  'answer_logs',
+  'chat_messages',
+  'chat_sessions',
+  'review_logs',
+  'user_item_states',
+  'difficulty_feedback',
+  'study_sessions',
+  'users',
+  'item_examples',
+  'items',
+  'units',
+  'levels',
+  'languages',
+];
+
 /**
- * 删除本地数据库并重置模块状态，下次 getDb() 会重建一个空库。
+ * 在原地把这个库重建为空结构。
  *
- * 用途：启动时数据库损坏 / 迁移失败会把 App 卡在加载页，用户需要一个自救出口。
- * 必须先 close 再删文件，否则 Windows/Android 上文件可能仍被占用。
+ * 为什么不用 deleteDatabaseSync：实测在 Android 上 `closeSync()` 之后文件**仍然
+ * 被占用**，删除会抛
+ *   Unable to delete database '.../files/SQLite/lang-study.db' that is currently
+ *   open. Close it prior to deletion.
+ * 于是"坏了就删库重来"这条自救路径在真机上根本走不通。DROP + 重建不碰文件，
+ * 因此没有句柄问题。
  */
-export function resetDatabase(): void {
-  try {
-    if (db) {
-      db.closeSync();
-    }
-  } catch {
-    // close 失败也要继续尝试删文件
+export function rebuildSchema(database: SQLite.SQLiteDatabase): void {
+  // 关外键：否则按依赖顺序删表会很挑剔
+  database.execSync('PRAGMA foreign_keys = OFF');
+  for (const t of ALL_TABLES) {
+    database.execSync(`DROP TABLE IF EXISTS ${t}`);
   }
-  db = null;
-  SQLite.deleteDatabaseSync(DB_NAME);
+  database.execSync('DROP TABLE IF EXISTS sqlite_sequence');
+  database.execSync(SCHEMA_SQL);
+  database.execSync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  database.execSync('PRAGMA foreign_keys = ON');
 }
 
 function hasColumn(database: SQLite.SQLiteDatabase, table: string, column: string): boolean {

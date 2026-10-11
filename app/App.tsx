@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ensureSyllabusSeeded } from './src/syllabus/import';
-import { resetDatabase } from './src/db/database';
+import { getDb, rebuildSchema } from './src/db/database';
 import { RootStackParamList } from './src/app/navigation';
 import ChatScreen from './src/app/screens/ChatScreen';
 import StudyScreen from './src/app/screens/StudyScreen';
@@ -67,7 +67,9 @@ export default function App() {
 
   const hardReset = useCallback(() => {
     try {
-      resetDatabase();
+      // 原地重建，不删数据库文件：Android 上 closeSync 后文件仍被占用，
+      // deleteDatabaseSync 会抛 "Unable to delete database ... currently open"。
+      rebuildSchema(getDb());
       setStartupError(null);
       setAttempt((n) => n + 1);
     } catch (e) {
