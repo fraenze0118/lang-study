@@ -4,6 +4,7 @@ import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { RootStackParamList } from '../navigation';
 import { ask, getHistory } from '../../features/ask/service';
 import { ChatMessage } from '../../lib/types';
+import { colors, radius, shadow, spacing, type } from '../../lib/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Ask'>;
 
@@ -24,21 +25,18 @@ export default function AskScreen({ route }: Props) {
     if (!text || loading) return;
     setInput('');
     setLoading(true);
-    const tempUser: ChatMessage = {
-      id: -1,
-      sessionId: sessionId ?? '',
-      role: 'user',
-      content: text,
-      createdAt: Date.now(),
-    };
-    setMessages((m) => [...m, tempUser]);
+    // 乐观显示用户消息（ask 内部会落库，成功后重新拉取历史）
+    setMessages((m) => [
+      ...m,
+      { id: -1, sessionId: sessionId ?? '', role: 'user', content: text, createdAt: Date.now() },
+    ]);
     try {
       const res = await ask({ sessionId, itemId, message: text });
       setSessionId(res.sessionId);
-      setMessages((m) => [...m.filter((x) => x.id !== -1), res.message]);
+      setMessages(getHistory(res.sessionId)); // 从库重载，用户消息不再消失
     } catch (e) {
       setMessages((m) => [
-        ...m.filter((x) => x.id !== -1),
+        ...m,
         {
           id: -2,
           sessionId: sessionId ?? '',
@@ -61,7 +59,9 @@ export default function AskScreen({ route }: Props) {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <View style={[styles.bubble, item.role === 'user' ? styles.userBubble : styles.aiBubble]}>
-            <Text style={styles.bubbleText}>{item.content}</Text>
+            <Text style={[styles.bubbleText, item.role === 'user' && styles.userBubbleText]}>
+              {item.content}
+            </Text>
           </View>
         )}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
@@ -73,9 +73,14 @@ export default function AskScreen({ route }: Props) {
           value={input}
           onChangeText={setInput}
           placeholder="输入你的问题…"
+          placeholderTextColor={colors.textSecondary}
           multiline
         />
-        <Pressable style={styles.sendBtn} onPress={send} disabled={loading}>
+        <Pressable
+          style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+          onPress={send}
+          disabled={loading}
+        >
           <Text style={styles.sendText}>{loading ? '…' : '发送'}</Text>
         </Pressable>
       </View>
@@ -84,15 +89,52 @@ export default function AskScreen({ route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  list: { padding: 16, flexGrow: 1 },
-  empty: { color: '#999', textAlign: 'center', marginTop: 40 },
-  bubble: { padding: 12, borderRadius: 12, marginBottom: 8, maxWidth: '85%' },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: '#ea580c' },
-  aiBubble: { alignSelf: 'flex-start', backgroundColor: '#f1f5f9' },
-  bubbleText: { fontSize: 15, lineHeight: 22, color: '#111' },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end', padding: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0' },
-  input: { flex: 1, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 10, minHeight: 40, maxHeight: 120, fontSize: 15 },
-  sendBtn: { backgroundColor: '#ea580c', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, marginLeft: 8 },
-  sendText: { color: '#fff', fontWeight: '700' },
+  container: { flex: 1, backgroundColor: colors.appBg },
+  list: { padding: spacing.lg, flexGrow: 1 },
+  empty: { ...type.body, color: colors.textSecondary, textAlign: 'center', marginTop: 40 },
+  bubble: {
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    marginBottom: spacing.sm,
+    maxWidth: '85%',
+  },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: colors.primary },
+  aiBubble: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    ...shadow.card,
+  },
+  bubbleText: { ...type.body, lineHeight: 22 },
+  userBubbleText: { color: colors.textOnPrimary },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.cardBorder,
+    backgroundColor: colors.bg,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: 40,
+    maxHeight: 120,
+    ...type.body,
+    backgroundColor: colors.surface,
+  },
+  sendBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    marginLeft: spacing.sm,
+  },
+  sendBtnDisabled: { opacity: 0.5 },
+  sendText: { color: colors.textOnPrimary, fontWeight: '700' },
 });
+

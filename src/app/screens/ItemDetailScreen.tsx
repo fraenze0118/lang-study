@@ -1,9 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { RootStackParamList } from '../navigation';
 import { getExamplesByItem, getItem } from '../../db/repo';
 import { checkSentence, startSession } from '../../features/ask/service';
+import { getActiveLanguageId } from '../../features/profile/languageService';
+import { getLanguageProfile } from '../../lib/languages';
+import { colors, radius, spacing, type } from '../../lib/theme';
+import AppButton from '../../components/AppButton';
 import SpeakerButton from '../../components/SpeakerButton';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ItemDetail'>;
@@ -11,6 +15,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ItemDetail'>;
 export default function ItemDetailScreen({ route, navigation }: Props) {
   const { itemId } = route.params;
   const item = getItem(itemId);
+  // 朗读语言跟随当前学习语种
+  const ttsLocale = getLanguageProfile(getActiveLanguageId()).ttsLocale;
   const examples = getExamplesByItem(itemId);
   const [sentence, setSentence] = useState('');
   const [checking, setChecking] = useState(false);
@@ -18,7 +24,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
   if (!item) {
     return (
       <View style={styles.center}>
-        <Text>未找到条目</Text>
+        <Text style={styles.meta}>未找到条目</Text>
       </View>
     );
   }
@@ -31,7 +37,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
       const sessionId = startSession(itemId);
       await checkSentence({ sessionId, itemId, sentence: text });
       navigation.navigate('Ask', { sessionId, itemId });
-    } catch (e) {
+    } catch {
       // 忽略，直接进入答疑页
       const sessionId = startSession(itemId);
       navigation.navigate('Ask', { sessionId, itemId });
@@ -44,7 +50,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.surfaceRow}>
         <Text style={styles.surface}>{item.surface}</Text>
-        <SpeakerButton text={item.reading} size={24} />
+        <SpeakerButton text={item.reading} locale={ttsLocale} size={24} />
       </View>
       <Text style={styles.reading}>{item.reading}</Text>
       <Text style={styles.meaning}>{item.meaning}</Text>
@@ -56,16 +62,19 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
         <View key={ex.id} style={styles.example}>
           <View style={styles.jaRow}>
             <Text style={styles.ja}>{ex.ja}</Text>
-            <SpeakerButton text={ex.ja} size={16} />
+            <SpeakerButton text={ex.ja} locale={ttsLocale} size={16} />
           </View>
-          <Text style={styles.kana}>{ex.kana}</Text>
+          <Text style={styles.kana}>{ex.pronunciation}</Text>
           <Text style={styles.zh}>{ex.zh}</Text>
         </View>
       ))}
 
-      <Pressable style={styles.askBtn} onPress={() => navigation.navigate('Ask', { itemId })}>
-        <Text style={styles.askBtnText}>问 AI</Text>
-      </Pressable>
+      <AppButton
+        label="问 AI"
+        icon="💬"
+        onPress={() => navigation.navigate('Ask', { itemId })}
+        style={styles.action}
+      />
 
       <Text style={styles.subTitle}>造句给 AI 点评</Text>
       <TextInput
@@ -73,32 +82,48 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
         value={sentence}
         onChangeText={setSentence}
         placeholder="用这个单词/语法造个句子…"
+        placeholderTextColor={colors.textSecondary}
         multiline
       />
-      <Pressable style={styles.checkBtn} onPress={onCheckSentence} disabled={checking}>
-        <Text style={styles.checkBtnText}>{checking ? '点评中…' : '点评'}</Text>
-      </Pressable>
+      <AppButton
+        label={checking ? '点评中…' : '点评'}
+        variant="success"
+        loading={checking}
+        disabled={sentence.trim().length === 0}
+        onPress={onCheckSentence}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, backgroundColor: '#fff' },
+  container: { padding: spacing.lg, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  surface: { fontSize: 32, fontWeight: '700' },
-  surfaceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  surface: { ...type.jaWord, fontSize: 32 },
+  surfaceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   jaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  reading: { fontSize: 20, color: '#666', marginTop: 4 },
-  meaning: { fontSize: 18, color: '#333', marginTop: 8 },
-  meta: { fontSize: 14, color: '#64748b', marginTop: 4 },
-  subTitle: { fontSize: 16, fontWeight: '700', marginTop: 20, marginBottom: 8 },
-  example: { paddingLeft: 8, borderLeftWidth: 3, borderLeftColor: '#cbd5e1', marginBottom: 8 },
-  ja: { fontSize: 16, fontWeight: '600' },
-  kana: { fontSize: 13, color: '#666' },
-  zh: { fontSize: 14, color: '#333' },
-  askBtn: { backgroundColor: '#ea580c', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 20 },
-  askBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  sentenceInput: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 10, minHeight: 60, fontSize: 15, marginBottom: 8 },
-  checkBtn: { backgroundColor: '#16a34a', padding: 12, borderRadius: 10, alignItems: 'center' },
-  checkBtnText: { color: '#fff', fontWeight: '700' },
+  reading: { ...type.ja, color: colors.textSecondary, marginTop: spacing.xs },
+  meaning: { ...type.zh, fontSize: 18, marginTop: spacing.sm },
+  meta: { ...type.caption, marginTop: spacing.xs },
+  subTitle: { ...type.h2, fontSize: 16, marginTop: spacing.xl, marginBottom: spacing.sm },
+  example: {
+    paddingLeft: spacing.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primaryBorder,
+    marginBottom: spacing.sm,
+  },
+  ja: { ...type.jaSmall },
+  kana: { ...type.caption },
+  zh: { ...type.body, color: colors.textSecondary },
+  action: { marginTop: spacing.xl },
+  sentenceInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: 60,
+    ...type.body,
+    marginBottom: spacing.sm,
+  },
 });
+

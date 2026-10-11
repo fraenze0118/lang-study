@@ -7,17 +7,34 @@
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.langstudy.app"
     },
     "android": {
       "package": "com.langstudy.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#ea580c"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ea580c",
+        "monochromeImage": "./assets/adaptive-icon.png"
       }
     },
     "plugins": [
-      "expo-sqlite"
-    ]
+      "expo-sqlite",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ea580c"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c04129d8-bbc0-4b51-acf2-89441e9d918f"
+      }
+    },
+    "owner": "fraenze18"
   }
 }

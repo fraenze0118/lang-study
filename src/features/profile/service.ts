@@ -1,37 +1,25 @@
-// 画像服务：读取/更新画像 + 难度反馈 + 水平评估（v2）
-import { chatJson } from '../../ai/client';
-import {
-  AssessmentQuestionResult,
-  AssessmentQuestionSchema,
-  buildAssessmentPrompt,
-  systemPrompt,
-} from '../../ai/prompts';
+// 画像服务：全局偏好（目标 / 每批条数 / 每日目标）+ 按语种的水平与难度
+//
+// 注意：水平与难度偏移**不再写 users 表**，一律走 user_languages（见 languageService）。
+// users.level_code / difficulty_bias 是已废弃的全局单一水平，新代码不得读写。
 import { getDb } from '../../db/database';
 import {
-  getUser,
   getOrCreateUser,
+  getUser,
   insertDifficultyFeedback,
-  markAssessed,
-  updateDifficulty,
+  updateDailyGoal as updateDailyGoalRow,
 } from '../../db/userRepo';
-import { Feedback, Goal, LEVEL_CODES, LevelCode } from '../../lib/enums';
+import { Feedback, Goal } from '../../lib/enums';
+import { shiftLevelCode } from '../../lib/languages';
 import { User } from '../../lib/types';
-import { DEFAULT_USER_ID } from '../learn/service';
+import { DEFAULT_USER_ID } from '../../lib/constants';
+import { ensureUserLanguage, getActiveContext, updateLanguageProfile } from './languageService';
 
+/** 只包含全局（不按语种）的偏好 */
 export interface ProfilePatch {
   goal?: Goal;
-  levelCode?: LevelCode;
   sessionSize?: number;
-  difficultyBias?: number;
   interests?: string | null;
-}
-
-export interface AssessmentQuestion {
-  id: string;
-  level: LevelCode;
-  prompt: string;
-  options: string[];
-  answer: string;
 }
 
 export function getProfile(userId = DEFAULT_USER_ID): User {
@@ -41,75 +29,69 @@ export function getProfile(userId = DEFAULT_USER_ID): User {
 export function updateProfile(userId: string, patch: ProfilePatch): User {
   const current = getOrCreateUser(userId);
   const goal = patch.goal ?? current.goal;
-  const levelCode = patch.levelCode ?? current.levelCode;
   const sessionSize = patch.sessionSize ?? current.sessionSize;
-  const difficultyBias = patch.difficultyBias ?? current.difficultyBias;
   const interests = patch.interests !== undefined ? patch.interests : current.interests;
 
   getDb().runSync(
-    'UPDATE users SET goal = ?, level_code = ?, session_size = ?, difficulty_bias = ?, interests = ? WHERE id = ?',
+    'UPDATE users SET goal = ?, session_size = ?, interests = ? WHERE id = ?',
     goal,
-    levelCode,
     sessionSize,
-    difficultyBias,
     interests,
     userId,
   );
   return getUser(userId)!;
 }
 
-// 难度反馈：too_easy → bias+1；too_hard → bias-1；越界则升降级
-export function applyDifficultyFeedback(userId: string, feedback: Feedback): User {
-  const current = getOrCreateUser(userId);
-  let bias = current.difficultyBias;
-  let level = current.levelCode;
+export function updateDailyGoal(userId: string, dailyGoalXp: number): void {
+  updateDailyGoalRow(userId, dailyGoalXp);
+}
+
+/**
+ * 用户自选初始水平（不再做逐题测评）。
+ * 只影响**指定语种**；难度偏移归零，避免与旧评估残留叠加。
+ */
+export function setInitialLevel(
+  userId: string,
+  languageId: string,
+  level: string,
+  skipScriptUnits: boolean,
+): void {
+  ensureUserLanguage(userId, languageId, level);
+  updateLanguageProfile(userId, languageId, {
+    levelCode: level,
+    difficultyBias: 0,
+    skipScriptUnits,
+  });
+  getDb().runSync('UPDATE users SET assessment_done = 1 WHERE id = ?', userId);
+}
+
+/**
+ * 难度反馈：too_easy → bias+1；too_hard → bias-1；越界则升降级（按语种）。
+ * just_right 只记录，不改状态。
+ */
+export function applyDifficultyFeedback(
+  userId: string,
+  feedback: Feedback,
+  languageId?: string,
+): User {
+  const ctx = getActiveContext(userId);
+  const targetLanguage = languageId ?? ctx.languageId;
+
+  let bias = ctx.difficultyBias;
+  let level = ctx.levelCode;
 
   if (feedback === 'too_easy') bias += 1;
   if (feedback === 'too_hard') bias -= 1;
   if (bias > 2) {
-    level = shiftLevel(level, +1);
+    level = shiftLevelCode(targetLanguage, level, +1);
     bias = 0;
   }
   if (bias < -2) {
-    level = shiftLevel(level, -1);
+    level = shiftLevelCode(targetLanguage, level, -1);
     bias = 0;
   }
 
-  updateDifficulty(userId, level, bias);
+  updateLanguageProfile(userId, targetLanguage, { levelCode: level, difficultyBias: bias });
   insertDifficultyFeedback(userId, null, feedback);
-  return getUser(userId)!;
-}
-
-export function shiftLevel(level: LevelCode, delta: number): LevelCode {
-  const idx = LEVEL_CODES.indexOf(level);
-  const next = Math.min(LEVEL_CODES.length - 1, Math.max(0, idx + delta));
-  return LEVEL_CODES[next];
-}
-
-// 生成一道指定等级的评估题
-export async function generateAssessmentQuestion(
-  level: LevelCode,
-  userId = DEFAULT_USER_ID,
-): Promise<AssessmentQuestion> {
-  const user = getOrCreateUser(userId);
-  const resp = await chatJson<AssessmentQuestionResult>(
-    [
-      { role: 'system', content: systemPrompt(user.levelCode, user.difficultyBias) },
-      { role: 'user', content: buildAssessmentPrompt(level) },
-    ],
-    AssessmentQuestionSchema,
-  );
-  return {
-    id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    level: (resp.level as LevelCode) ?? level,
-    prompt: resp.prompt,
-    options: resp.options,
-    answer: resp.answer,
-  };
-}
-
-// 完成评估：写入等级 + 标记已评估
-export function completeAssessment(userId: string, level: LevelCode): User {
-  markAssessed(userId, level);
-  return getUser(userId)!;
+  return getUser(userId) ?? getOrCreateUser(userId);
 }

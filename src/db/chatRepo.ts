@@ -1,4 +1,4 @@
-// 对话会话与消息数据访问（v2：kind 区分 agent/qa）
+// 对话会话与消息数据访问（v2：kind 区分 agent/qa；v5：language_id 标记语种）
 import { getDb } from './database';
 import { ChatKind } from '../lib/enums';
 import { ChatMessage, ChatSession } from '../lib/types';
@@ -8,12 +8,14 @@ export function createSession(
   userId: string,
   itemId: string | null,
   kind: ChatKind = 'agent',
+  languageId: string | null = null,
 ): void {
   getDb().runSync(
-    'INSERT INTO chat_sessions (id, user_id, item_id, kind, created_at) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO chat_sessions (id, user_id, item_id, language_id, kind, created_at) VALUES (?, ?, ?, ?, ?, ?)',
     sessionId,
     userId,
     itemId,
+    languageId,
     kind,
     Date.now(),
   );
@@ -21,7 +23,8 @@ export function createSession(
 
 export function getSession(sessionId: string): ChatSession | null {
   return getDb().getFirstSync<ChatSession>(
-    `SELECT id, user_id AS userId, item_id AS itemId, kind, created_at AS createdAt
+    `SELECT id, user_id AS userId, item_id AS itemId, language_id AS languageId,
+            kind, created_at AS createdAt
      FROM chat_sessions WHERE id = ?`,
     sessionId,
   );

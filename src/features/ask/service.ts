@@ -9,9 +9,10 @@ import {
 } from '../../ai/prompts';
 import { createSession, getMessages, getSession, insertMessage } from '../../db/chatRepo';
 import { getItem } from '../../db/repo';
-import { getOrCreateUser, getRecentLearnedItems } from '../../db/userRepo';
+import { getRecentLearnedItems } from '../../db/userRepo';
 import { ChatMessage } from '../../lib/types';
-import { DEFAULT_USER_ID } from '../learn/service';
+import { DEFAULT_USER_ID } from '../../lib/constants';
+import { getActiveContext } from '../profile/languageService';
 
 export interface AskInput {
   sessionId?: string;
@@ -23,7 +24,7 @@ export async function ask(
   input: AskInput,
   userId = DEFAULT_USER_ID,
 ): Promise<{ sessionId: string; message: ChatMessage }> {
-  const user = getOrCreateUser(userId);
+  const ctx = getActiveContext(userId);
   const item = input.itemId ? getItem(input.itemId) : null;
 
   let sessionId = input.sessionId;
@@ -32,7 +33,7 @@ export async function ask(
   }
   const existing = getSession(sessionId);
   if (!existing) {
-    createSession(sessionId, userId, item?.id ?? null, 'qa');
+    createSession(sessionId, userId, item?.id ?? null, 'qa', ctx.languageId);
   }
 
   const sessionItemId = existing?.itemId ?? item?.id ?? null;
@@ -40,22 +41,26 @@ export async function ask(
 
   insertMessage(sessionId, 'user', input.message);
 
-  const recent = getRecentLearnedItems(userId, 20);
+  const recent = getRecentLearnedItems(userId, ctx.languageId, 20);
   const history = getMessages(sessionId)
     .slice(-10)
     .map((m) => (m.role === 'user' ? '学生' : '老师') + '：' + m.content)
     .join('\n');
 
   const prompt = buildAskPrompt({
+    languageId: ctx.languageId,
     item: sessionItem,
-    levelCode: user.levelCode,
+    levelCode: ctx.levelCode,
     recent,
     history,
     question: input.message,
   });
 
   const answer = await chatText([
-    { role: 'system', content: systemPrompt(user.levelCode) },
+    {
+      role: 'system',
+      content: systemPrompt(ctx.languageId, ctx.levelCode, ctx.difficultyBias),
+    },
     { role: 'user', content: prompt },
   ]);
 
@@ -69,9 +74,9 @@ export function getHistory(sessionId: string): ChatMessage[] {
 
 // 为某条目（或自由提问）创建一个答疑会话，返回 sessionId
 export function startSession(itemId?: string, userId = DEFAULT_USER_ID): string {
-  const user = getOrCreateUser(userId);
+  const ctx = getActiveContext(userId);
   const sessionId = `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  createSession(sessionId, user.id, itemId ?? null, 'qa');
+  createSession(sessionId, userId, itemId ?? null, 'qa', ctx.languageId);
   return sessionId;
 }
 
@@ -79,18 +84,22 @@ export async function checkSentence(
   input: { sessionId: string; itemId: string; sentence: string },
   userId = DEFAULT_USER_ID,
 ): Promise<ChatMessage> {
-  const user = getOrCreateUser(userId);
+  const ctx = getActiveContext(userId);
   const item = getItem(input.itemId);
 
   const prompt = buildCheckSentencePrompt({
+    languageId: ctx.languageId,
     item,
-    levelCode: user.levelCode,
+    levelCode: ctx.levelCode,
     sentence: input.sentence,
   });
 
   const result = await chatJson<CheckSentenceResult>(
     [
-      { role: 'system', content: systemPrompt(user.levelCode) },
+      {
+        role: 'system',
+        content: systemPrompt(ctx.languageId, ctx.levelCode, ctx.difficultyBias),
+      },
       { role: 'user', content: prompt },
     ],
     CheckSentenceSchema,

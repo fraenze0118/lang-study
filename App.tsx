@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ensureSyllabusSeeded } from './src/syllabus/import';
 import { RootStackParamList } from './src/app/navigation';
 import ChatScreen from './src/app/screens/ChatScreen';
@@ -12,7 +13,6 @@ import ReviewScreen from './src/app/screens/ReviewScreen';
 import ItemDetailScreen from './src/app/screens/ItemDetailScreen';
 import AskScreen from './src/app/screens/AskScreen';
 import OnboardingScreen from './src/app/screens/OnboardingScreen';
-import AssessmentScreen from './src/app/screens/AssessmentScreen';
 import SettingsScreen from './src/app/screens/SettingsScreen';
 import ProgressScreen from './src/app/screens/ProgressScreen';
 import { getUser } from './src/db/userRepo';
@@ -42,21 +42,24 @@ export default function App() {
 
   return (
     <>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName={initialRoute}>
-          <Stack.Screen name="Chat" component={ChatScreen} options={{ title: 'lang-study' }} />
-          <Stack.Screen name="Study" component={StudyScreen} options={{ title: '学习' }} />
-          <Stack.Screen name="Knowledge" component={KnowledgeScreen} options={{ title: '知识库' }} />
-          <Stack.Screen name="Review" component={ReviewScreen} options={{ title: '复习' }} />
-          <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ title: '条目详情' }} />
-          <Stack.Screen name="Ask" component={AskScreen} options={{ title: '问 AI' }} />
-          <Stack.Screen name="Progress" component={ProgressScreen} options={{ title: '进度' }} />
-          <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: '设置' }} />
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="Assessment" component={AssessmentScreen} options={{ title: '水平评估', headerBackVisible: false }} />
-        </Stack.Navigator>
-      </NavigationContainer>
-      <StatusBar style="auto" />
+      {/* SafeAreaProvider 必须包在最外层：各页面的 SafeAreaView / useSafeAreaInsets 依赖它，
+          缺失时 inset 恒为 0，内容会顶到状态栏下面（首页与学习页都受影响）。 */}
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName={initialRoute}>
+            <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Study" component={StudyScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Knowledge" component={KnowledgeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Review" component={ReviewScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Ask" component={AskScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Progress" component={ProgressScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Settings" component={SettingsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ headerShown: false }} />
+          </Stack.Navigator>
+        </NavigationContainer>
+        <StatusBar style="auto" />
+      </SafeAreaProvider>
     </>
   );
 }

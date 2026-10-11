@@ -3,6 +3,7 @@ import { getDb } from '../../db/database';
 import { DueReviewSummary, getDueReviews, getStateById } from '../../db/userRepo';
 import { cardToSnapshot, masteryFromFsrsState, schedule, snapshotToCard } from '../../fsrs';
 import { MasteryState, ReviewGrade } from '../../lib/enums';
+import { getActiveLanguageId } from '../profile/languageService';
 
 export interface GradeResult {
   due: number; // epoch ms
@@ -63,6 +64,10 @@ export function grade(stateId: number, g: ReviewGrade, elapsedMs: number): Grade
   };
 }
 
-export function getQueue(userId: string, limit = 50): DueReviewSummary[] {
-  return getDueReviews(userId, limit);
+export function getQueue(
+  userId: string,
+  limit = 50,
+  languageId = getActiveLanguageId(),
+): DueReviewSummary[] {
+  return getDueReviews(userId, languageId, limit);
 }

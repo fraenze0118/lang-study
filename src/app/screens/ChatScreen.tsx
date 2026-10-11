@@ -1,6 +1,8 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { RootStackParamList } from '../navigation';
 import {
   getAgentHistory,
@@ -10,14 +12,22 @@ import {
 } from '../../features/agent/service';
 import {
   ContentPreview,
+  clearBatchCache,
   generateCustomPreview,
   setPendingSession,
   suggestPreview,
   takeCachedBatch,
 } from '../../features/study/service';
+import { getOverview, ProgressOverview } from '../../features/progress/service';
 import { insertMessage } from '../../db/chatRepo';
 import { ChatMessage } from '../../lib/types';
 import { DEFAULT_USER_ID } from '../../features/learn/service';
+import { colors, radius, shadow, spacing, type } from '../../lib/theme';
+import { tapFeedback } from '../../lib/haptics';
+import AppButton from '../../components/AppButton';
+import ProgressBar from '../../components/ProgressBar';
+import StreakChip from '../../components/StreakChip';
+import LanguageSwitcher from '../../components/LanguageSwitcher';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Chat'>;
 
@@ -27,11 +37,11 @@ type ListItem =
   | { kind: 'message'; message: ChatMessage }
   | { kind: 'preview'; preview: ContentPreview };
 
-const QUICK: { label: string; kind: QuickKind }[] = [
-  { label: '帮我安排学习', kind: 'suggest' },
-  { label: '我想学流行词', kind: 'custom' },
-  { label: '我要复习', kind: 'review' },
-  { label: '问个问题', kind: 'ask' },
+const QUICK: { label: string; sub: string; icon: string; kind: QuickKind; accent: string }[] = [
+  { label: '帮我安排', sub: '按水平推荐', icon: '✧', kind: 'suggest', accent: colors.primary },
+  { label: '自定义主题', sub: '如流行词', icon: '✦', kind: 'custom', accent: colors.amber },
+  { label: '复习', sub: '到期内容', icon: '↻', kind: 'review', accent: colors.success },
+  { label: '问 AI', sub: '随时答疑', icon: '?', kind: 'ask', accent: colors.info },
 ];
 
 export default function ChatScreen({ navigation }: Props) {
@@ -39,8 +49,11 @@ export default function ChatScreen({ navigation }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingPreview, setPendingPreview] = useState<ContentPreview | null>(null);
+  const [overview, setOverview] = useState<ProgressOverview | null>(null);
   const listRef = useRef<FlatList<ListItem>>(null);
   const inputRef = useRef<TextInput>(null);
+  /** 已渲染条目数，用于区分"新消息"与"首次布局" */
+  const lastCountRef = useRef(0);
 
   useEffect(() => {
     const sid = getOrCreateAgentSessionId(DEFAULT_USER_ID);
@@ -53,10 +66,45 @@ export default function ChatScreen({ navigation }: Props) {
     }
   }, []);
 
+  // 每次回到首页刷新状态条（学完/复习完回来能看到目标推进）
+  useFocusEffect(
+    useCallback(() => {
+      try {
+        setOverview(getOverview(DEFAULT_USER_ID));
+      } catch {
+        // 概览失败不影响对话
+      }
+    }, []),
+  );
+
+  const reloadOverview = () => {
+    try {
+      setOverview(getOverview(DEFAULT_USER_ID));
+    } catch {
+      // 忽略
+    }
+  };
+
   const data: ListItem[] = [
     ...messages.map((m) => ({ kind: 'message' as const, message: m })),
     ...(pendingPreview ? [{ kind: 'preview' as const, preview: pendingPreview }] : []),
   ];
+
+  /**
+   * 切换语种后重新载入：清掉预取缓存与待用批次，重建该语种的对话会话。
+   * 不做这一步会把上一语种的内容/对话带进新语种。
+   */
+  const reloadForLanguage = () => {
+    clearBatchCache();
+    setPendingPreview(null);
+    const sid = getOrCreateAgentSessionId(DEFAULT_USER_ID);
+    const history = getAgentHistory();
+    if (history.length === 0) {
+      setMessages([insertMessage(sid, 'assistant', greeting(DEFAULT_USER_ID))]);
+    } else {
+      setMessages(history);
+    }
+  };
 
   const appendUser = (sid: string, text: string) => {
     insertMessage(sid, 'user', text);
@@ -138,19 +186,72 @@ export default function ChatScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <Pressable style={styles.topLink} onPress={() => navigation.navigate('Knowledge')}>
-          <Text style={styles.topLinkText}>📚 知识库</Text>
-        </Pressable>
-        <Pressable style={styles.topLink} onPress={() => navigation.navigate('Settings')}>
-          <Text style={styles.topLinkText}>⚙️ 设置</Text>
-        </Pressable>
-      </View>
+      <SafeAreaView style={styles.safeTop} edges={['top']}>
+        {/* 顶栏：语种 + 今日目标（主信息）
+            刻意不用标题栏：页面名与下面的语种/进度语义重复，去掉更干净。 */}
+        <View style={styles.header}>
+          <LanguageSwitcher onChanged={() => reloadForLanguage()} />
+          <View style={styles.spacer} />
+          <Pressable
+            style={styles.iconBtn}
+            accessibilityLabel="设置"
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Text style={styles.iconText}>⚙︎</Text>
+          </Pressable>
+        </View>
+
+        {/* 今日目标一行表达：数字 + 细进度条 + 连续天数，避免两块信息各飘一端 */}
+        <View style={styles.goalRow}>
+          <Text style={styles.goalLabel}>今日目标</Text>
+          <View style={styles.goalBarWrap}>
+            <ProgressBar
+              ratio={
+                (overview?.streak.goalXp ?? 0) > 0
+                  ? (overview?.xpToday ?? 0) / (overview?.streak.goalXp ?? 1)
+                  : 0
+              }
+              height={6}
+              color={overview?.streak.todayDone ? colors.success : colors.primary}
+            />
+          </View>
+          <Text style={styles.goalValue}>
+            {(overview?.streak.goalXp ?? 0) > 0
+              ? `${Math.min(overview?.xpToday ?? 0, overview?.streak.goalXp ?? 0)}/${overview?.streak.goalXp}`
+              : '未设'}
+          </Text>
+          {(overview?.streak.current ?? 0) > 0 ? (
+            <StreakChip
+              days={overview?.streak.current ?? 0}
+              todayDone={overview?.streak.todayDone ?? false}
+            />
+          ) : null}
+        </View>
+
+        {/* 二级入口：低饱和、等宽，不与主信息争注意力 */}
+        <View style={styles.navRow}>
+          <Pressable style={styles.navBtn} onPress={() => navigation.navigate('Review')}>
+            <Text style={styles.navIcon}>↻</Text>
+            <Text style={styles.navLabel}>复习</Text>
+            {(overview?.dueCount ?? 0) > 0 ? (
+              <Text style={styles.navBadge}>{overview?.dueCount}</Text>
+            ) : null}
+          </Pressable>
+          <Pressable style={styles.navBtn} onPress={() => navigation.navigate('Knowledge')}>
+            <Text style={styles.navIcon}>☰</Text>
+            <Text style={styles.navLabel}>知识库</Text>
+          </Pressable>
+          <Pressable style={styles.navBtn} onPress={() => navigation.navigate('Progress')}>
+            <Text style={styles.navIcon}>◔</Text>
+            <Text style={styles.navLabel}>记录</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
 
       <FlatList
         ref={listRef}
         data={data}
-        keyExtractor={(item, index) => (item.kind === 'message' ? `m-${item.message.id}` : 'preview')}
+        keyExtractor={(item) => (item.kind === 'message' ? `m-${item.message.id}` : 'preview')}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
           if (item.kind === 'preview') {
@@ -173,13 +274,25 @@ export default function ChatScreen({ navigation }: Props) {
             </View>
           );
         }}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        // 只在条数增长时滚到底（新消息）。
+        // 原来监听 onContentSizeChange：一进页面就把首条问候顶出屏幕，只剩半截。
+        onContentSizeChange={() => {
+          if (data.length > lastCountRef.current) {
+            listRef.current?.scrollToEnd({ animated: true });
+          }
+          lastCountRef.current = data.length;
+        }}
       />
 
-      <View style={styles.quickRow}>
+      {/* 快捷入口卡片（2×2）：每张用不同强调色，区分"学新内容"与"复习/答疑" */}
+      <View style={styles.quickGrid}>
         {QUICK.map((q) => (
-          <Pressable key={q.label} style={styles.quickBtn} onPress={() => runQuick(q.kind)}>
-            <Text style={styles.quickText}>{q.label}</Text>
+          <Pressable key={q.label} style={styles.quickCard} onPress={() => runQuick(q.kind)}>
+            <View style={[styles.quickIconWrap, { backgroundColor: `${q.accent}1A` }]}>
+              <Text style={[styles.quickIcon, { color: q.accent }]}>{q.icon}</Text>
+            </View>
+            <Text style={styles.quickLabel}>{q.label}</Text>
+            <Text style={styles.quickSub}>{q.sub}</Text>
           </Pressable>
         ))}
       </View>
@@ -191,10 +304,14 @@ export default function ChatScreen({ navigation }: Props) {
           value={input}
           onChangeText={setInput}
           placeholder="说你想学什么…"
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={colors.textSecondary}
           multiline
         />
-        <Pressable style={[styles.sendBtn, loading && styles.sendBtnDisabled]} onPress={() => send(input)} disabled={loading}>
+        <Pressable
+          style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+          onPress={() => send(input)}
+          disabled={loading}
+        >
           <Text style={styles.sendText}>{loading ? '…' : '➤'}</Text>
         </Pressable>
       </View>
@@ -239,93 +356,194 @@ function PreviewCard({ preview, onStart }: { preview: ContentPreview; onStart: (
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fdfcfb' },
-  topBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
-  topLink: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#f3e8e0',
+  container: { flex: 1, backgroundColor: colors.appBg },
+  safeTop: { backgroundColor: colors.bg },
+
+  // —— 顶栏 ——
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
-  topLinkText: { color: '#c2410c', fontWeight: '600', fontSize: 13 },
-  list: { padding: 16, flexGrow: 1 },
-  msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 12 },
+  spacer: { flex: 1 },
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconText: { fontSize: 19, color: colors.textSecondary },
+
+  // —— 今日目标：一行表达，进度条只做点缀 ——
+  goalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  goalLabel: { ...type.caption },
+  goalBarWrap: { flex: 1, maxWidth: 140 },
+  goalValue: { ...type.label, color: colors.primaryText },
+
+  // —— 二级入口：等宽、低饱和 ——
+  navRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  navBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+  },
+  navIcon: { fontSize: 13, color: colors.textSecondary },
+  navLabel: { ...type.caption, color: colors.text },
+  navBadge: {
+    ...type.caption,
+    fontSize: 11,
+    color: colors.textOnPrimary,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: 5,
+    overflow: 'hidden',
+    marginLeft: 2,
+  },
+
+  list: { padding: spacing.lg, paddingTop: spacing.md, flexGrow: 1 },
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: spacing.md },
   rowUser: { justifyContent: 'flex-end' },
   rowAi: { justifyContent: 'flex-start' },
-  avatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginHorizontal: 6 },
-  avatarAi: { backgroundColor: '#ea580c' },
-  avatarUser: { backgroundColor: '#64748b' },
-  avatarText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  bubble: { padding: 12, borderRadius: 18, maxWidth: '78%' },
-  userBubble: { backgroundColor: '#ea580c', borderBottomRightRadius: 4 },
-  aiBubble: { backgroundColor: '#ffffff', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#f1e5db' },
-  bubbleText: { fontSize: 15, lineHeight: 22, color: '#1f2937' },
-  userBubbleText: { color: '#fff' },
-  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingBottom: 6 },
-  quickBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: '#fff',
-    borderColor: '#fed7aa',
-    borderWidth: 1,
-    borderRadius: 18,
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: spacing.xs,
   },
-  quickText: { color: '#c2410c', fontWeight: '600', fontSize: 13 },
+  // 头像降饱和：原来两个都是高饱和橙/蓝，和气泡一起把整屏颜色搅乱
+  avatarAi: { backgroundColor: colors.primarySoftStrong },
+  avatarUser: { backgroundColor: colors.trackBg },
+  avatarText: { fontSize: 10, fontWeight: '700' },
+  bubble: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, maxWidth: '76%' },
+  // 用户气泡用浅暖底 + 深字，不再整块高饱和橙：一屏里橙色只留主按钮
+  userBubble: { backgroundColor: colors.primarySoftStrong, borderRadius: radius.xl },
+  aiBubble: {
+    backgroundColor: colors.bg,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  bubbleText: { ...type.body, lineHeight: 22, color: colors.text },
+  userBubbleText: { color: colors.primaryText },
+
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  quickCard: {
+    width: '48%',
+    backgroundColor: colors.bg,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    ...shadow.card,
+  },
+  quickIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickIcon: { fontSize: 17, fontWeight: '700' },
+  quickLabel: { ...type.body, fontWeight: '700', marginTop: spacing.sm },
+  quickSub: { ...type.caption },
+
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#f1e5db',
-    backgroundColor: '#fff',
+    borderTopColor: colors.cardBorder,
+    backgroundColor: colors.bg,
   },
   input: {
     flex: 1,
-    backgroundColor: '#f8fafc',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     minHeight: 42,
     maxHeight: 120,
-    fontSize: 15,
+    ...type.body,
   },
   sendBtn: {
     width: 42,
     height: 42,
-    borderRadius: 21,
-    backgroundColor: '#ea580c',
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
   sendBtnDisabled: { opacity: 0.5 },
-  sendText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  sendText: { color: colors.textOnPrimary, fontSize: 18, fontWeight: '700' },
+
   preview: {
-    backgroundColor: '#fff7ed',
-    borderRadius: 16,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#fed7aa',
-    padding: 14,
-    marginBottom: 12,
+    borderColor: colors.primaryBorder,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     marginLeft: 36,
+    ...shadow.card,
   },
-  previewTitle: { fontSize: 15, fontWeight: '700', color: '#9a3412', marginBottom: 4 },
-  previewReason: { fontSize: 13, color: '#7c2d12', marginBottom: 10, lineHeight: 19 },
-  previewItem: { paddingVertical: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#fee2c2' },
-  previewSurface: { fontSize: 17, fontWeight: '600', color: '#1f2937' },
-  previewReading: { fontSize: 13, color: '#a8a29e', fontWeight: '400' },
-  previewMeaning: { fontSize: 13, color: '#4b5563', marginBottom: 2 },
-  previewGrammarBox: { marginTop: 8, padding: 8, backgroundColor: '#ffedd5', borderRadius: 8 },
-  previewGrammar: { fontSize: 14, color: '#9a3412' },
+  previewTitle: { ...type.h2, color: colors.primaryText, fontSize: 16 },
+  previewReason: {
+    ...type.caption,
+    color: colors.primaryText,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  previewItem: {
+    paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.primaryBorder,
+  },
+  previewSurface: { ...type.jaSmall, fontSize: 17 },
+  previewReading: { ...type.caption, fontWeight: '400' },
+  previewMeaning: { ...type.caption, color: colors.text, marginBottom: 2 },
+  previewGrammarBox: {
+    marginTop: spacing.md,
+    padding: spacing.sm,
+    backgroundColor: colors.primarySoftStrong,
+    borderRadius: radius.sm,
+  },
+  previewGrammar: { ...type.body, color: colors.primaryText },
   startBtn: {
-    backgroundColor: '#ea580c',
+    backgroundColor: colors.primary,
     paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 12,
   },
-  startBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  startBtnText: { color: colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
 });

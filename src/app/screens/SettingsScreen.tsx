@@ -11,25 +11,52 @@ import {
   View,
 } from 'react-native';
 import { RootStackParamList } from '../navigation';
-import { Goal, LEVEL_CODES, LevelCode } from '../../lib/enums';
+import { Goal } from '../../lib/enums';
+import { getLanguageProfile, getLevelsSorted, listLanguages } from '../../lib/languages';
 import { DEFAULT_USER_ID } from '../../features/learn/service';
-import { getProfile, updateProfile } from '../../features/profile/service';
+import { getProfile, setInitialLevel, updateProfile } from '../../features/profile/service';
+import {
+  addLanguage,
+  getActiveContext,
+  listMyLanguages,
+  setActiveLanguageId,
+  updateLanguageProfile,
+} from '../../features/profile/languageService';
+import { clearBatchCache } from '../../features/study/service';
 import { exportAll, importAll } from '../../features/backup/service';
-import { checkJapaneseVoice, openTtsSettings } from '../../lib/tts';
+import { colors, radius, spacing, type } from '../../lib/theme';
+import PageHeader from '../../components/PageHeader';
+import { checkVoiceAvailable, openTtsSettings } from '../../lib/tts';
 
 const GOALS: { value: Goal; label: string }[] = [
-  { value: 'exam', label: 'JLPT 备考' },
+  { value: 'exam', label: '等级考试备考' },
   { value: 'daily', label: '日常交流' },
   { value: 'both', label: '两者兼顾' },
 ];
+
+/** 难度偏移：-2..+2，与 applyDifficultyFeedback 的 bias 同一套 */
+const BIASES: { value: number; label: string }[] = [
+  { value: -2, label: '简单一点' },
+  { value: -1, label: '略简单' },
+  { value: 0, label: '正常' },
+  { value: 1, label: '略难' },
+  { value: 2, label: '难一点' },
+];
+
+/** 一次学多少 */
+const SESSION_SIZES = [3, 5, 8, 12];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export default function SettingsScreen({ navigation }: Props) {
   const profile = getProfile(DEFAULT_USER_ID);
+  const ctx = getActiveContext(DEFAULT_USER_ID);
   const [goal, setGoal] = useState<Goal>(profile.goal);
-  const [level, setLevel] = useState<LevelCode>(profile.levelCode);
-  const [daily, setDaily] = useState(String(profile.sessionSize));
+  const [level, setLevel] = useState<string>(ctx.levelCode);
+  const [bias, setBias] = useState(ctx.difficultyBias);
+  const [sessionSize, setSessionSize] = useState(profile.sessionSize);
+  const [skipScript, setSkipScript] = useState(ctx.skipScriptUnits);
+  const [languageId, setLanguageId] = useState(ctx.languageId);
 
   const [exportVisible, setExportVisible] = useState(false);
   const [exportJson, setExportJson] = useState('');
@@ -38,9 +65,13 @@ export default function SettingsScreen({ navigation }: Props) {
 
   const [voiceStatus, setVoiceStatus] = useState<'idle' | 'checking' | 'ok' | 'missing'>('idle');
 
+  const languageProfile = getLanguageProfile(languageId);
+  const levels = getLevelsSorted(languageId);
+  const myLanguages = listMyLanguages(DEFAULT_USER_ID);
+
   const checkVoice = async () => {
     setVoiceStatus('checking');
-    const r = await checkJapaneseVoice();
+    const r = await checkVoiceAvailable(languageProfile.ttsLocale);
     setVoiceStatus(r.available ? 'ok' : 'missing');
   };
 
@@ -49,7 +80,7 @@ export default function SettingsScreen({ navigation }: Props) {
     if (!ok) {
       Alert.alert(
         '提示',
-        '无法自动打开设置，请手动前往：系统设置 → 系统 → 语言和输入法 → 文字转语音(TTS)输出 → 下载日语语音',
+        `无法自动打开设置，请手动前往：系统设置 → 系统 → 语言和输入法 → 文字转语音(TTS)输出 → 下载${languageProfile.voiceLabel}`,
       );
     }
   };
@@ -58,12 +89,43 @@ export default function SettingsScreen({ navigation }: Props) {
     checkVoice();
   }, []);
 
-  const save = () => {
+  /** 难度与学习量即时保存：这两项用户最常调，不该还要再点一次保存 */
+  const applyStudyControls = (patch: {
+    levelCode?: string;
+    difficultyBias?: number;
+    sessionSize?: number;
+    skipScriptUnits?: boolean;
+  }) => {
     updateProfile(DEFAULT_USER_ID, {
       goal,
-      levelCode: level,
-      sessionSize: Number(daily) || 8,
+      sessionSize: patch.sessionSize ?? sessionSize,
     });
+    setInitialLevel(DEFAULT_USER_ID, languageId, patch.levelCode ?? level, patch.skipScriptUnits ?? skipScript);
+    if (patch.difficultyBias !== undefined) {
+      // setInitialLevel 会把 bias 归零，这里再写回用户选的值
+      updateLanguageProfile(DEFAULT_USER_ID, languageId, { difficultyBias: patch.difficultyBias });
+      setBias(patch.difficultyBias);
+    }
+    if (patch.levelCode) setLevel(patch.levelCode);
+    if (patch.sessionSize) setSessionSize(patch.sessionSize);
+    if (patch.skipScriptUnits !== undefined) setSkipScript(patch.skipScriptUnits);
+  };
+
+  /** 切换学习语种：切换后清空预取缓存，避免旧语种内容串进新语种 */
+  const switchLanguage = (next: string) => {
+    if (next === languageId) return;
+    setActiveLanguageId(next);
+    clearBatchCache();
+    const nextCtx = getActiveContext(DEFAULT_USER_ID);
+    setLanguageId(next);
+    setLevel(nextCtx.levelCode);
+    setBias(nextCtx.difficultyBias);
+    setSkipScript(nextCtx.skipScriptUnits);
+    setVoiceStatus('idle');
+  };
+
+  const save = () => {
+    updateProfile(DEFAULT_USER_ID, { goal, sessionSize });
     navigation.goBack();
   };
 
@@ -83,7 +145,9 @@ export default function SettingsScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <View style={styles.flex}>
+      <PageHeader title="设置" subtitle={languageProfile.name} />
+      <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.label}>学习目标</Text>
       <View style={styles.options}>
         {GOALS.map((g) => (
@@ -97,27 +161,99 @@ export default function SettingsScreen({ navigation }: Props) {
         ))}
       </View>
 
-      <Text style={styles.label}>当前水平（JLPT）</Text>
+      <Text style={styles.label}>学习语种</Text>
       <View style={styles.options}>
-        {LEVEL_CODES.map((l) => (
+        {myLanguages.map((l) => (
           <Pressable
-            key={l}
-            style={[styles.chip, level === l && styles.chipActive]}
-            onPress={() => setLevel(l)}
+            key={l.languageId}
+            style={[styles.chip, languageId === l.languageId && styles.chipActive]}
+            onPress={() => switchLanguage(l.languageId)}
           >
-            <Text style={level === l ? styles.chipTextActive : styles.chipText}>{l}</Text>
+            <Text style={languageId === l.languageId ? styles.chipTextActive : styles.chipText}>
+              {l.profile.flag} {l.profile.name}
+            </Text>
+          </Pressable>
+        ))}
+        {listLanguages()
+          .filter((p) => !myLanguages.some((l) => l.languageId === p.id))
+          .map((p) => (
+            <Pressable
+              key={p.id}
+              style={styles.chip}
+              onPress={() => {
+                addLanguage(DEFAULT_USER_ID, p.id);
+                switchLanguage(p.id);
+              }}
+            >
+              <Text style={styles.chipText}>＋ {p.flag} {p.name}</Text>
+            </Pressable>
+          ))}
+      </View>
+
+      <Text style={styles.label}>当前水平（{languageProfile.levelSystem}）</Text>
+      <Text style={styles.hint}>当前语种：{languageProfile.name}。改完立即生效。</Text>
+      <View style={styles.options}>
+        {levels.map((l) => (
+          <Pressable
+            key={l.code}
+            style={[styles.chip, level === l.code && styles.chipActive]}
+            onPress={() => applyStudyControls({ levelCode: l.code })}
+          >
+            <Text style={level === l.code ? styles.chipTextActive : styles.chipText}>{l.label}</Text>
           </Pressable>
         ))}
       </View>
 
-      <Text style={styles.label}>每日新词数</Text>
-      <TextInput
-        style={styles.input}
-        value={daily}
-        onChangeText={setDaily}
-        keyboardType="number-pad"
-        placeholder="10"
-      />
+      <Text style={styles.label}>难度偏好</Text>
+      <Text style={styles.hint}>在当前水平上整体调难或调简单，对 AI 生成内容直接生效。</Text>
+      <View style={styles.options}>
+        {BIASES.map((b) => (
+          <Pressable
+            key={b.value}
+            style={[styles.chip, bias === b.value && styles.chipActive]}
+            onPress={() => applyStudyControls({ difficultyBias: b.value })}
+          >
+            <Text style={bias === b.value ? styles.chipTextActive : styles.chipText}>{b.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.label}>一次学多少</Text>
+      <Text style={styles.hint}>每批推荐的条目数。嫌一批太长就选少一点。</Text>
+      <View style={styles.options}>
+        {SESSION_SIZES.map((n) => (
+          <Pressable
+            key={n}
+            style={[styles.chip, sessionSize === n && styles.chipActive]}
+            onPress={() => applyStudyControls({ sessionSize: n })}
+          >
+            <Text style={sessionSize === n ? styles.chipTextActive : styles.chipText}>{n} 个</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <Text style={styles.label}>字母入门</Text>
+      <Text style={styles.hint}>
+        已认得{languageProfile.scriptLabel}时，推荐内容会跳过入门单元（{languageProfile.scriptUnitTitle}）。
+      </Text>
+      <View style={styles.options}>
+        <Pressable
+          style={[styles.chip, !skipScript && styles.chipActive]}
+          onPress={() => applyStudyControls({ skipScriptUnits: false })}
+        >
+          <Text style={!skipScript ? styles.chipTextActive : styles.chipText}>
+            从{languageProfile.scriptLabel}学起
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.chip, skipScript && styles.chipActive]}
+          onPress={() => applyStudyControls({ skipScriptUnits: true })}
+        >
+          <Text style={skipScript ? styles.chipTextActive : styles.chipText}>
+            已{languageProfile.skipScriptLabel}
+          </Text>
+        </Pressable>
+      </View>
 
       <Pressable style={styles.button} onPress={save}>
         <Text style={styles.buttonText}>保存</Text>
@@ -137,8 +273,8 @@ export default function SettingsScreen({ navigation }: Props) {
       <View style={styles.voiceRow}>
         <Text style={styles.voiceStatus}>
           {voiceStatus === 'checking' && '检测中…'}
-          {voiceStatus === 'ok' && '✅ 日语语音可用'}
-          {voiceStatus === 'missing' && '⚠️ 未检测到日语语音'}
+          {voiceStatus === 'ok' && `✅ ${languageProfile.voiceLabel}可用`}
+          {voiceStatus === 'missing' && `⚠️ 未检测到${languageProfile.voiceLabel}`}
           {voiceStatus === 'idle' && '未检测'}
         </Text>
         <Pressable style={styles.voiceBtn} onPress={checkVoice}>
@@ -187,32 +323,75 @@ export default function SettingsScreen({ navigation }: Props) {
             <Text style={styles.buttonText}>取消</Text>
           </Pressable>
         </View>
-      </Modal>
-    </ScrollView>
+        </Modal>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, backgroundColor: '#fff' },
-  label: { fontSize: 15, fontWeight: '600', marginTop: 20, marginBottom: 8 },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#cbd5e1', backgroundColor: '#fff' },
-  chipActive: { backgroundColor: '#ea580c', borderColor: '#ea580c' },
-  chipText: { color: '#334155' },
-  chipTextActive: { color: '#fff', fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, fontSize: 16 },
-  row: { flexDirection: 'row', gap: 12 },
-  button: { backgroundColor: '#ea580c', padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16, flex: 1 },
-  secondaryBtn: { backgroundColor: '#64748b' },
-  voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  voiceStatus: { fontSize: 15, color: '#1f2937', flex: 1 },
-  voiceBtn: { backgroundColor: '#ea580c', paddingVertical: 8, paddingHorizontal: 18, borderRadius: 20 },
-  voiceBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  voiceHint: { fontSize: 13, color: '#64748b', marginTop: 8, lineHeight: 19 },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  modal: { flex: 1, padding: 24, backgroundColor: '#fff' },
-  modalTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
-  modalScroll: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 8, padding: 12, marginBottom: 12 },
-  jsonText: { fontSize: 12, color: '#334155', lineHeight: 18 },
-  importInput: { flex: 1, borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, padding: 12, fontSize: 12, textAlignVertical: 'top', marginBottom: 12 },
+  flex: { flex: 1, backgroundColor: colors.bg },
+  container: { padding: spacing.xl, paddingTop: spacing.sm, backgroundColor: colors.bg },
+  label: { ...type.h2, fontSize: 15, marginTop: spacing.xl, marginBottom: spacing.sm },
+  hint: { ...type.caption, lineHeight: 19, marginBottom: spacing.sm },
+  options: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { ...type.body, color: colors.text },
+  chipTextActive: { ...type.body, color: colors.textOnPrimary, fontWeight: '700' },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    ...type.zh,
+  },
+  row: { flexDirection: 'row', gap: spacing.md },
+  button: {
+    backgroundColor: colors.primary,
+    padding: spacing.lg,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    flex: 1,
+  },
+  secondaryBtn: { backgroundColor: colors.textSecondary },
+  voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  voiceStatus: { ...type.body, flex: 1 },
+  voiceBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.pill,
+  },
+  voiceBtnText: { ...type.label, color: colors.textOnPrimary, fontSize: 14 },
+  voiceHint: { ...type.caption, marginTop: spacing.sm, lineHeight: 19 },
+  buttonText: { ...type.body, color: colors.textOnPrimary, fontWeight: '700' },
+  modal: { flex: 1, padding: spacing.xl, backgroundColor: colors.bg },
+  modalTitle: { ...type.h2, marginBottom: spacing.md },
+  modalScroll: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  jsonText: { fontSize: 12, color: colors.text, lineHeight: 18 },
+  importInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: 12,
+    textAlignVertical: 'top',
+    marginBottom: spacing.md,
+  },
 });

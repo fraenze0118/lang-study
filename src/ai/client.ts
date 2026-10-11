@@ -12,7 +12,7 @@ interface ChatOptions {
 }
 
 /**
- * 调用 OpenAI 兼容接口并要求返回 JSON，用 Zod 校验。
+ * 调用 OpenAI 兼容接口并要求返回 JSON（结构化输出），用 Zod 校验。
  * 解析失败自动重试（默认 1 次）。
  */
 export async function chatJson<T>(
@@ -26,7 +26,7 @@ export async function chatJson<T>(
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const content = await callChat(messages, temperature);
+      const content = await callChat(messages, temperature, true);
       const parsed: unknown = JSON.parse(content);
       return schema.parse(parsed);
     } catch (e) {
@@ -36,17 +36,26 @@ export async function chatJson<T>(
   throw lastError instanceof Error ? lastError : new Error('AI 生成失败');
 }
 
-/** 调用 OpenAI 兼容接口，返回纯文本（用于答疑等 Markdown 回答）。 */
+/** 调用 OpenAI 兼容接口，返回纯文本（答疑用，不做 JSON 约束）。 */
 export async function chatText(
   messages: ChatMsg[],
   opts: { temperature?: number } = {},
 ): Promise<string> {
-  return callChat(messages, opts.temperature ?? 0.7);
+  return callChat(messages, opts.temperature ?? 0.7, false);
 }
 
-async function callChat(messages: ChatMsg[], temperature: number): Promise<string> {
+async function callChat(messages: ChatMsg[], temperature: number, useJson: boolean): Promise<string> {
   if (!LLM_CONFIG.apiKey) {
     throw new Error('未配置 EXPO_PUBLIC_LLM_API_KEY，请在 .env 中填写');
+  }
+
+  const body: Record<string, unknown> = {
+    model: LLM_CONFIG.model,
+    messages,
+    temperature,
+  };
+  if (useJson) {
+    body.response_format = { type: 'json_object' };
   }
 
   const res = await fetch(`${LLM_CONFIG.baseUrl}/chat/completions`, {
@@ -55,12 +64,7 @@ async function callChat(messages: ChatMsg[], temperature: number): Promise<strin
       'Content-Type': 'application/json',
       Authorization: `Bearer ${LLM_CONFIG.apiKey}`,
     },
-    body: JSON.stringify({
-      model: LLM_CONFIG.model,
-      messages,
-      temperature,
-      response_format: { type: 'json_object' },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -72,8 +76,8 @@ async function callChat(messages: ChatMsg[], temperature: number): Promise<strin
     choices?: { message?: { content?: string } }[];
   };
   const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== 'string' || !content) {
-    throw new Error('LLM 响应缺少 content');
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new Error('LLM 返回空内容，请重试');
   }
   return content;
 }

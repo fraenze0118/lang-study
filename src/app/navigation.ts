@@ -1,6 +1,5 @@
 // 导航路由参数表（v2）
 import type { ContentPreview } from '../features/study/service';
-import type { LevelCode } from '../lib/enums';
 
 export type RootStackParamList = {
   Chat: undefined;
@@ -12,5 +11,4 @@ export type RootStackParamList = {
   Progress: undefined;
   Settings: undefined;
   Onboarding: undefined;
-  Assessment: { startLevel: LevelCode };
 };
