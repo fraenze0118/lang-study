@@ -17,6 +17,24 @@ export function getDb(): SQLite.SQLiteDatabase {
   return db;
 }
 
+/**
+ * 删除本地数据库并重置模块状态，下次 getDb() 会重建一个空库。
+ *
+ * 用途：启动时数据库损坏 / 迁移失败会把 App 卡在加载页，用户需要一个自救出口。
+ * 必须先 close 再删文件，否则 Windows/Android 上文件可能仍被占用。
+ */
+export function resetDatabase(): void {
+  try {
+    if (db) {
+      db.closeSync();
+    }
+  } catch {
+    // close 失败也要继续尝试删文件
+  }
+  db = null;
+  SQLite.deleteDatabaseSync(DB_NAME);
+}
+
 function hasColumn(database: SQLite.SQLiteDatabase, table: string, column: string): boolean {
   const cols = database.getAllSync<{ name: string }>(`PRAGMA table_info(${table})`);
   return cols.some((c) => c.name === column);
