@@ -2,18 +2,16 @@
 #
 #   powershell -ExecutionPolicy Bypass -File scripts/generate-icons.ps1
 #
-# Design v2 (fixes the "kana outgrew its frame" problem):
-#   The previous version drew the glyph at box*0.70 with inset=0, so the stroke
-#   ran into the rounded corners and the mark read as "letter crammed in a square".
-#   v2 instead:
-#     - glyph at ~50% of the tile, leaving a real margin on all sides
-#     - soft drop shadow under the glyph for depth (was flat white on flat orange)
-#     - gradient re-aimed top-left light -> bottom-right deep, so it no longer
-#       fights the warm background in the lower-right
-#     - radius raised to the iOS squircle ratio
+# ---------------------------------------------------------------------------
+# SUPERSEDED. The shipped icon is now built from the mascot artwork by
+# make-icon-from-art.ps1 (source: assets/src/mascot-source.png). This script is
+# kept only as a fallback for producing the original "kana on an orange tile"
+# mark if the mascot artwork is ever dropped.
+# ---------------------------------------------------------------------------
 #
-# The kana is U+3042 (HIRAGANA LETTER A): the first character of the gojuuon,
-# which reads as "Japanese learning" and matches the beginner path.
+# Design: warm orange gradient rounded square + white "a" kana.
+#   The kana is U+3042 (HIRAGANA LETTER A), the first character of the gojuuon,
+#   which reads as "Japanese learning" and matches the beginner path.
 #
 # This file is intentionally ASCII-only: Windows PowerShell 5.1 reads .ps1 files
 # as ANSI unless they carry a UTF-8 BOM, which would corrupt non-ASCII literals.

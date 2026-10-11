@@ -53,10 +53,10 @@ function Render-Masked([string]$mask, [string]$outName) {
 
   $path = New-MaskPath $mask $vis
   $g.SetClip($path)
-  # inside the clip only: background colour, then the foreground composited on it
-  $b = New-Object System.Drawing.SolidBrush($bg)
-  $g.FillRectangle($b, 0, 0, $vis, $vis)
-  $b.Dispose()
+  # Draw the adaptive foreground itself (already includes its own opaque
+  # background fill). Do NOT re-composite the source artwork here: its background
+  # is a gradient, so scaling it onto a flat fill would show a seam that the real
+  # launcher never produces.
   $dest = New-Object System.Drawing.Rectangle(0, 0, $vis, $vis)
   $src = New-Object System.Drawing.Rectangle($off, $off, $vis, $vis)
   $g.DrawImage($fg, $dest, $src, [System.Drawing.GraphicsUnit]::Pixel)
